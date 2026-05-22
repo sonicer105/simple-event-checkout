@@ -1,0 +1,47 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: simple-event-checkout-app
+    ports:
+      - "7879:80"
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: mysql:8.0
+    container_name: simple-event-checkout-db
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: simple_event_checkout
+      MYSQL_USER: simple_event_checkout
+      MYSQL_PASSWORD: simple_event_checkout
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./public_html/database/migrations/001_init.sql:/docker-entrypoint-initdb.d/001_init.sql:ro
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: simple-event-checkout-phpmyadmin
+    profiles: ["tools"]
+    depends_on:
+      - db
+    ports:
+      - "8082:80"
+    environment:
+      PMA_HOST: db
+      PMA_PORT: 3306
+
+volumes:
+  db_data:
