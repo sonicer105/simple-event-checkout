@@ -5,7 +5,7 @@
 {% block admin_content %}
   <wa-card class="admin-card">
     <div class="admin-title">Check-In</div>
-    <div class="admin-subtitle">Scan or paste a ticket QR token to check someone in.</div>
+    <div class="admin-subtitle">Check in tickets by scanning a QR code or looking them up.</div>
 
     <div id="checkin-message" style="margin-top: 12px; display: none;"></div>
 
@@ -13,29 +13,62 @@
 
     <wa-divider></wa-divider>
 
-    <div class="wa-stack wa-gap-l">
-      <div class="checkin-camera">
-        <video id="checkin-video" class="checkin-video" playsinline muted></video>
-        <div class="wa-cluster wa-gap-s" style="margin-top: 10px;">
-          <wa-button id="checkin-start" variant="brand">
-            <wa-icon slot="start" name="camera" variant="solid"></wa-icon>
-            Start Camera
-          </wa-button>
-          <wa-button id="checkin-stop" variant="neutral" disabled>Stop</wa-button>
-        </div>
-        <p class="wa-caption-s" style="margin: 10px 0 0;">
-          Tip: on iOS you may need to use Safari and allow camera permissions.
-        </p>
-      </div>
+    <wa-tab-group id="checkin-tabs" active="scan">
+      <wa-tab panel="scan">Scan</wa-tab>
+      <wa-tab panel="lookup">Lookup</wa-tab>
 
-      <form id="checkin-form" class="wa-stack wa-gap-m">
-        <wa-input id="qr_token" name="qr_token" label="QR Token" required value="{{ last_token ?? '' }}"></wa-input>
-        <wa-button id="checkin-submit" type="submit" variant="brand">
-          <wa-icon slot="start" name="check" variant="solid"></wa-icon>
-          Check In
-        </wa-button>
-      </form>
-    </div>
+      <wa-tab-panel name="scan">
+        <div class="wa-stack wa-gap-l" style="padding-top: 12px;">
+          <wa-callout variant="neutral">Use the camera scanner when possible. You can also paste a QR token manually.</wa-callout>
+          <div class="checkin-camera">
+            <video id="checkin-video" class="checkin-video" playsinline muted></video>
+            <div class="wa-cluster wa-gap-s" style="margin-top: 10px;">
+              <wa-button id="checkin-start" variant="brand">
+                <wa-icon slot="start" name="camera" variant="solid"></wa-icon>
+                Start Camera
+              </wa-button>
+              <wa-button id="checkin-switch" variant="neutral" disabled>
+                <wa-icon slot="start" name="arrows-rotate" variant="solid"></wa-icon>
+                Switch Camera
+              </wa-button>
+              <wa-button id="checkin-stop" variant="neutral" disabled>Stop</wa-button>
+            </div>
+            <p class="wa-caption-s" style="margin: 10px 0 0;">
+              Tip: on iOS you may need to use Safari and allow camera permissions.
+            </p>
+          </div>
+
+          <form id="checkin-form" class="wa-stack wa-gap-m">
+            <wa-input id="qr_token" name="qr_token" label="QR Token" required value="{{ last_token ?? '' }}"></wa-input>
+            <wa-button id="checkin-submit" type="submit" variant="brand">
+              <wa-icon slot="start" name="check" variant="solid"></wa-icon>
+              Check In
+            </wa-button>
+          </form>
+        </div>
+      </wa-tab-panel>
+
+      <wa-tab-panel name="lookup">
+        <div class="wa-stack wa-gap-l" style="padding-top: 12px;">
+          <wa-callout variant="neutral">Use this when someone doesn’t have their QR code. Search by email, event, variation, or modifier text.</wa-callout>
+
+          <form id="lookup-form" class="wa-stack wa-gap-s">
+            <div class="wa-cluster wa-gap-s wa-align-items-end checkin-lookup-row">
+              <div class="checkin-lookup-field" style="flex: 1;">
+                <wa-input id="lookup-q" label="Search" placeholder="email@example.com" clearable size="s"></wa-input>
+              </div>
+              <wa-button id="lookup-search" type="submit" variant="neutral" size="s" class="checkin-lookup-button">
+                <wa-icon slot="start" name="magnifying-glass" variant="solid"></wa-icon>
+                Search
+              </wa-button>
+            </div>
+            <div id="lookup-status" class="wa-caption-s" style="color: var(--wa-color-neutral-700);"></div>
+          </form>
+
+          <div id="lookup-results" class="wa-stack wa-gap-xs"></div>
+        </div>
+      </wa-tab-panel>
+    </wa-tab-group>
   </wa-card>
 
   {# Note: placement must be one of Web Awesome's supported values (e.g. top-end). "top" will position it at its static DOM location. #}

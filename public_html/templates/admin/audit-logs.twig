@@ -7,8 +7,8 @@
     <div class="admin-title">Audit Log</div>
     <p>Most recent events (newest first).</p>
 
-    <div class="admin-table-wrap">
-      <table class="admin-table">
+    <div class="admin-table-wrap admin-table-wrap--responsive">
+      <table class="admin-table admin-table--responsive">
         <thead>
           <tr>
             <th>Time</th>
@@ -21,11 +21,11 @@
         <tbody>
           {% for row in logs %}
             <tr>
-              <td class="mono">{{ row.created_at|format_dt_utc('Y-m-d H:i') }}</td>
-              <td><wa-tag size="small">{{ row.event_type }}</wa-tag></td>
-              <td class="mono">{{ row.admin_id ?? '' }}</td>
-              <td class="mono">{{ row.ip ?? '' }}</td>
-              <td>{{ row.message ?? '' }}</td>
+              <td data-label="Time" class="mono">{{ row.created_at|format_dt_utc('Y-m-d H:i') }}</td>
+              <td data-label="Type"><wa-tag size="s">{{ row.event_type }}</wa-tag></td>
+              <td data-label="Admin" class="mono">{{ row.admin_id ?? '' }}</td>
+              <td data-label="IP" class="mono">{{ row.ip ?? '' }}</td>
+              <td data-label="Message">{{ row.message ?? '' }}</td>
             </tr>
           {% else %}
             <tr>

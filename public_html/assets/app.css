@@ -46,6 +46,34 @@ body {
   border-radius: 999px;
 }
 
+/* Public nav mobile split */
+@media (max-width: 700px) {
+  .public-topbar {
+    gap: 12px;
+  }
+
+  .public-brand {
+    flex: 0 1 40%;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .public-nav {
+    flex: 0 1 60%;
+    min-width: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .public-nav wa-button-group {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+  }
+}
+
 /* Admin check-in */
 .checkin-video {
   width: 100%;
@@ -364,6 +392,61 @@ p {
   background: #fafaf8;
 }
 
+/* Make admin tables readable on mobile without horizontal scrolling. */
+@media (max-width: 700px) {
+  .admin-table-wrap.admin-table-wrap--responsive {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .admin-table.admin-table--responsive {
+    display: block;
+    background: transparent;
+  }
+
+  .admin-table.admin-table--responsive thead {
+    display: none;
+  }
+
+  .admin-table.admin-table--responsive tbody {
+    display: grid;
+    gap: 10px;
+  }
+
+  .admin-table.admin-table--responsive tr {
+    display: grid;
+    gap: 6px;
+    padding: 10px 12px;
+    border: 1px solid #e7e7e3;
+    border-radius: 12px;
+    background: #ffffff;
+  }
+
+  .admin-table.admin-table--responsive td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+  }
+
+  .admin-table.admin-table--responsive td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: #6a6a6a;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  .admin-table.admin-table--responsive td[data-label="Email"] {
+    overflow-wrap: anywhere;
+  }
+}
+
 .admin-kv {
   display: grid;
   gap: 10px;
@@ -399,6 +482,26 @@ p {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 12px;
+}
+
+@media (max-width: 700px) {
+  .checkin-lookup-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .checkin-lookup-field {
+    width: 100%;
+  }
+
+  .checkin-lookup-button {
+    width: 100%;
+  }
+}
+
+/* Compact lookup result cards on the admin check-in page. */
+wa-card.checkin-lookup-card::part(body) {
+  padding: 16px 16px;
 }
 
 .admin-actions-row {
@@ -511,6 +614,16 @@ p {
 .public-hero-desc {
   font-size: 15px;
   line-height: 1.6;
+}
+
+@media (max-width: 700px) {
+  .public-hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-hero-media img {
+    max-height: 240px;
+  }
 }
 
 @media (max-width: 900px) {

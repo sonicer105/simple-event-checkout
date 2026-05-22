@@ -64,7 +64,8 @@ final class EventRepository
         return $this->db->fetchAllAssociative(
             "SELECT
                 e.*,
-                COUNT(pt.id) AS ticket_count
+                COUNT(pt.id) AS ticket_count,
+                SUM(CASE WHEN pt.checked_in_at IS NOT NULL THEN 1 ELSE 0 END) AS picked_up_count
              FROM events e
              JOIN purchase_tickets pt ON pt.event_id = e.id AND pt.refunded_at IS NULL
              JOIN purchases p ON p.id = pt.purchase_id AND p.payment_status = 'paid'

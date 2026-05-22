@@ -27,7 +27,7 @@
           {% if top_events|length == 0 %}
             <wa-callout variant="neutral">No ticket sales yet.</wa-callout>
           {% else %}
-            <wa-bar-chart orientation="horizontal" label="Top Events by Tickets" description="Top 10 events by tickets sold (paid, non-refunded).">
+            <wa-bar-chart orientation="horizontal" label="Top Events by Tickets" description="Top 10 events by tickets sold and picked up (paid, non-refunded).">
               <script type="application/json">{{ bar_config|json_encode|raw }}</script>
             </wa-bar-chart>
           {% endif %}

@@ -12,25 +12,25 @@
       <wa-button href="/admin/events/new" variant="primary">New Event</wa-button>
     </div>
 
-    <div class="admin-table-wrap">
-      <table class="admin-table">
+    <div class="admin-table-wrap admin-table-wrap--responsive">
+      <table class="admin-table admin-table--responsive">
         <thead>
           <tr>
             <th>Name</th>
             <th>Slug</th>
             <th>Status</th>
             <th>Start</th>
-            <th></th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for row in events %}
             <tr>
-              <td>{{ row.name }}</td>
-              <td class="mono">{{ row.slug }}</td>
-              <td><wa-tag size="small">{{ row.status }}</wa-tag></td>
-              <td class="mono">{{ row.start_time ?? '' }}</td>
-              <td><wa-button href="/admin/events/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
+              <td data-label="Name">{{ row.name }}</td>
+              <td data-label="Slug" class="mono">{{ row.slug }}</td>
+              <td data-label="Status"><wa-tag size="s">{{ row.status }}</wa-tag></td>
+              <td data-label="Start" class="mono">{{ row.start_time ?? '' }}</td>
+              <td data-label="Actions"><wa-button href="/admin/events/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
             </tr>
           {% else %}
             <tr>

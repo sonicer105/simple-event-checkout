@@ -20,6 +20,19 @@ final class PurchaseRepository
         );
     }
 
+    public function listRecentFinalized(int $limit = 200): array
+    {
+        $limit = max(1, min(500, $limit));
+        return $this->db->fetchAllAssociative(
+            'SELECT *
+             FROM purchases
+             WHERE payment_status <> ?
+             ORDER BY created_at DESC, id DESC
+             LIMIT ' . $limit,
+            ['pending']
+        );
+    }
+
     public function listRecentByEventId(int $eventId, int $limit = 200): array
     {
         $eventId = (int) $eventId;

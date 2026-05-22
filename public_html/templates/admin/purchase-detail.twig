@@ -9,16 +9,16 @@
     <div class="admin-kv">
       <div class="admin-kv-row"><div class="admin-kv-key">Created</div><div class="admin-kv-val mono">{{ purchase.created_at|format_dt_utc('Y-m-d H:i') }}</div></div>
       <div class="admin-kv-row"><div class="admin-kv-key">Email</div><div class="admin-kv-val mono">{{ purchase.email }}</div></div>
-      <div class="admin-kv-row"><div class="admin-kv-key">Total (cents)</div><div class="admin-kv-val mono">{{ purchase.total_cents }}</div></div>
-      <div class="admin-kv-row"><div class="admin-kv-key">Status</div><div class="admin-kv-val"><wa-tag size="small">{{ purchase.payment_status }}</wa-tag></div></div>
+      <div class="admin-kv-row"><div class="admin-kv-key">Total</div><div class="admin-kv-val mono">{{ (purchase.total_cents ?? 0)|format_money }} {{ purchase.currency ?? '' }}</div></div>
+      <div class="admin-kv-row"><div class="admin-kv-key">Status</div><div class="admin-kv-val"><wa-tag size="s">{{ purchase.payment_status }}</wa-tag></div></div>
       <div class="admin-kv-row">
         <div class="admin-kv-key">QR Email</div>
         <div class="admin-kv-val">
           {% if purchase.receipt_email_sent_at %}
-            <wa-tag size="small" variant="success">Sent</wa-tag>
+            <wa-tag size="s" variant="success">Sent</wa-tag>
             <span class="wa-caption-s mono">{{ purchase.receipt_email_sent_at|format_dt_utc('Y-m-d H:i') }}</span>
           {% else %}
-            <wa-tag size="small" variant="warning">Not sent</wa-tag>
+            <wa-tag size="s" variant="warning">Not sent</wa-tag>
             {% if purchase.receipt_email_error %}
               <span class="wa-caption-s">{{ purchase.receipt_email_error }}</span>
             {% endif %}
@@ -100,10 +100,10 @@
 
               <div class="wa-cluster wa-gap-s">
                 {% if row.checked_in_at %}
-                  <wa-tag size="small" variant="success">Checked in</wa-tag>
+                  <wa-tag size="s" variant="success">Checked in</wa-tag>
                   <span class="wa-caption-s mono">{{ row.checked_in_at|format_dt_utc('Y-m-d H:i') }}</span>
                 {% else %}
-                  <wa-tag size="small" variant="neutral">Not checked in</wa-tag>
+                  <wa-tag size="s" variant="neutral">Not checked in</wa-tag>
                 {% endif %}
               </div>
 
@@ -115,9 +115,11 @@
           </div>
         </article>
       {% else %}
-        <wa-card>
-          <p>No tickets on this purchase.</p>
-        </wa-card>
+        {% if purchase.payment_status == 'pending' %}
+          <wa-callout variant="neutral">This purchase is still pending; tickets are created when checkout completes.</wa-callout>
+        {% else %}
+          <wa-callout variant="warning">No tickets found for this purchase.</wa-callout>
+        {% endif %}
       {% endfor %}
     </div>
   </wa-card>

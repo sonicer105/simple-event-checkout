@@ -59,4 +59,30 @@ final class PurchaseTicketModifierRepository
             'value' => $value,
         ]);
     }
+
+    public function listByPurchaseTicketIds(array $purchaseTicketIds): array
+    {
+        $ids = array_values(array_unique(array_map('intval', $purchaseTicketIds)));
+        $ids = array_values(array_filter($ids, static fn (int $v): bool => $v > 0));
+        if (count($ids) === 0) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+        return $this->db->fetchAllAssociative(
+            'SELECT
+                ptm.purchase_ticket_id,
+                ptm.modifier_id,
+                ptm.value,
+                em.name AS modifier_name,
+                em.modifier_type
+             FROM purchase_ticket_modifiers ptm
+             JOIN event_modifiers em ON em.id = ptm.modifier_id
+             WHERE ptm.purchase_ticket_id IN (' . $placeholders . ')
+             ORDER BY ptm.purchase_ticket_id ASC, ptm.id ASC',
+            $ids
+        );
+    }
+
 }

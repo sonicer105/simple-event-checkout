@@ -258,15 +258,24 @@ final class AdminRoutes
 
                 $topEvents = $eventRepo->listTopByTickets(10);
                 $barLabels = array_map(static fn (array $row): string => (string) ($row['name'] ?? ''), $topEvents);
-                $barData = array_map(static fn (array $row): int => (int) ($row['ticket_count'] ?? 0), $topEvents);
+                $barSold = array_map(static fn (array $row): int => (int) ($row['ticket_count'] ?? 0), $topEvents);
+                $barPickedUp = array_map(static fn (array $row): int => (int) ($row['picked_up_count'] ?? 0), $topEvents);
 
                 $barConfig = [
                     'data' => [
                         'labels' => $barLabels,
-                        'datasets' => [[
-                            'label' => 'Tickets',
-                            'data' => $barData,
-                        ]],
+                        'datasets' => [
+                            [
+                                'label' => 'Tickets Sold',
+                                'data' => $barSold,
+                                'backgroundColor' => '#2563eb',
+                            ],
+                            [
+                                'label' => 'Tickets Picked Up',
+                                'data' => $barPickedUp,
+                                'backgroundColor' => '#16a34a',
+                            ],
+                        ],
                     ],
                     'options' => [
                         'plugins' => [
@@ -1028,18 +1037,20 @@ final class AdminRoutes
                 $admin = (array) $request->getAttribute('admin');
                 $qp = $request->getQueryParams();
                 $eventId = (int) ($qp['event_id'] ?? 0);
+                $includePending = (int) ($qp['include_pending'] ?? 0) === 1;
 
                 $events = $eventRepo->listAll();
 
                 $purchases = $eventId > 0
                     ? $purchaseRepo->listRecentByEventId($eventId, 200)
-                    : $purchaseRepo->listRecent(200);
+                    : ($includePending ? $purchaseRepo->listRecent(200) : $purchaseRepo->listRecentFinalized(200));
 
                 return Twig::fromRequest($request)->render($response, 'admin/purchases.twig', [
                     'admin' => $admin,
                     'purchases' => $purchases,
                     'events' => $events,
                     'filter_event_id' => $eventId,
+                    'include_pending' => $includePending,
                 ]);
             });
 
@@ -1198,6 +1209,96 @@ final class AdminRoutes
                 $ticket = $purchaseTickets->findByQrToken($token);
                 if (!$ticket) {
                     $auditRepo->log((int) $admin['id'], 'ticket_checkin_failed', 'Invalid QR token', RequestUtil::clientIp($config, $request), $request->getHeaderLine('User-Agent'), $request->getHeaderLine('Referer'));
+                    return $reply(404, ['ok' => false, 'message' => 'Ticket not found.']);
+                }
+
+                $ticket['modifiers'] = $purchaseTicketModifiers->listByPurchaseTicketId((int) $ticket['id']);
+                $ticket['addons'] = $purchaseTicketAddons->listByPurchaseTicketId((int) $ticket['id']);
+                if (!empty($ticket['checked_in_at'])) {
+                    try {
+                        $tz = new \DateTimeZone((string) ($config['app_timezone'] ?? 'America/Vancouver'));
+                        $dt = new \DateTimeImmutable((string) $ticket['checked_in_at'], new \DateTimeZone('UTC'));
+                        $ticket['checked_in_at_display'] = $dt->setTimezone($tz)->format('Y-m-d H:i:s');
+                    } catch (\Throwable) {
+                        $ticket['checked_in_at_display'] = (string) $ticket['checked_in_at'];
+                    }
+                }
+
+                if (!empty($ticket['refunded_at'])) {
+                    $auditRepo->log((int) $admin['id'], 'ticket_checkin_refunded', 'Attempted check-in for refunded ticket #' . $ticket['id'], RequestUtil::clientIp($config, $request), $request->getHeaderLine('User-Agent'), $request->getHeaderLine('Referer'));
+                    return $reply(409, ['ok' => false, 'message' => 'Ticket was refunded.', 'ticket' => $ticket]);
+                }
+
+                if (!empty($ticket['checked_in_at'])) {
+                    $auditRepo->log((int) $admin['id'], 'ticket_checkin_duplicate', 'Attempted duplicate check-in for ticket #' . $ticket['id'], RequestUtil::clientIp($config, $request), $request->getHeaderLine('User-Agent'), $request->getHeaderLine('Referer'));
+                    return $reply(409, ['ok' => false, 'message' => 'Already checked in.', 'ticket' => $ticket]);
+                }
+
+                $purchaseTickets->markCheckedIn((int) $ticket['id'], (int) $admin['id']);
+                $auditRepo->log((int) $admin['id'], 'ticket_checked_in', 'Checked in ticket #' . $ticket['id'], RequestUtil::clientIp($config, $request), $request->getHeaderLine('User-Agent'), $request->getHeaderLine('Referer'));
+                $ticket['checked_in_at'] = date('Y-m-d H:i:s');
+                $ticket['checked_in_by_admin_id'] = (int) $admin['id'];
+                $ticket['checked_in_at_display'] = $ticket['checked_in_at'];
+
+                return $reply(200, ['ok' => true, 'message' => 'Checked in.', 'ticket' => $ticket]);
+            });
+
+            $group->get('/checkin/lookup/ajax', function (Request $request, Response $response) use ($purchaseTickets, $purchaseTicketModifiers, $auditRepo, $config) {
+                $admin = (array) $request->getAttribute('admin');
+                $q = trim((string) ($request->getQueryParams()['q'] ?? ''));
+
+                $reply = function (int $code, array $data) use ($response): Response {
+                    $json = json_encode($data, JSON_PRETTY_PRINT);
+                    $response->getBody()->write($json === false ? '{}' : $json);
+                    return $response
+                        ->withStatus($code)
+                        ->withHeader('Content-Type', 'application/json');
+                };
+
+                $rows = $purchaseTickets->listForCheckinLookup($q !== '' ? $q : null, 500);
+                $ids = array_map(static fn (array $r): int => (int) ($r['id'] ?? 0), $rows);
+                $ids = array_values(array_filter($ids, static fn (int $v): bool => $v > 0));
+
+                $modRows = $purchaseTicketModifiers->listByPurchaseTicketIds($ids);
+                $modsByTicketId = [];
+                foreach ($modRows as $m) {
+                    $tid = (int) ($m['purchase_ticket_id'] ?? 0);
+                    if ($tid <= 0) {
+                        continue;
+                    }
+                    $modsByTicketId[$tid] ??= [];
+                    $modsByTicketId[$tid][] = $m;
+                }
+
+                foreach ($rows as &$r) {
+                    $tid = (int) ($r['id'] ?? 0);
+                    $r['modifiers'] = $modsByTicketId[$tid] ?? [];
+                }
+                unset($r);
+
+                return $reply(200, ['ok' => true, 'tickets' => $rows]);
+            });
+
+            $group->post('/checkin/ajax/by-id', function (Request $request, Response $response) use ($purchaseTickets, $purchaseTicketModifiers, $purchaseTicketAddons, $auditRepo, $config) {
+                $admin = (array) $request->getAttribute('admin');
+                $raw = (string) $request->getBody();
+                $payload = json_decode($raw, true);
+                $ticketId = (int) (($payload['purchase_ticket_id'] ?? 0) ?? 0);
+
+                $reply = function (int $code, array $data) use ($response): Response {
+                    $json = json_encode($data, JSON_PRETTY_PRINT);
+                    $response->getBody()->write($json === false ? '{}' : $json);
+                    return $response
+                        ->withStatus($code)
+                        ->withHeader('Content-Type', 'application/json');
+                };
+
+                if ($ticketId <= 0) {
+                    return $reply(400, ['ok' => false, 'message' => 'Missing ticket id.']);
+                }
+
+                $ticket = $purchaseTickets->findById($ticketId);
+                if (!$ticket) {
                     return $reply(404, ['ok' => false, 'message' => 'Ticket not found.']);
                 }
 

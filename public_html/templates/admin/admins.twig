@@ -15,8 +15,8 @@
       </wa-button>
     </div>
 
-    <div class="admin-table-wrap">
-      <table class="admin-table">
+    <div class="admin-table-wrap admin-table-wrap--responsive">
+      <table class="admin-table admin-table--responsive">
         <thead>
           <tr>
             <th>ID</th>
@@ -24,24 +24,24 @@
             <th>Email</th>
             <th>2FA</th>
             <th>Last Login</th>
-            <th></th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for row in admins %}
             <tr>
-              <td class="mono">{{ row.id }}</td>
-              <td class="mono">{{ row.username }}</td>
-              <td class="mono">{{ row.email }}</td>
-              <td>
+              <td data-label="ID" class="mono">{{ row.id }}</td>
+              <td data-label="Username" class="mono">{{ row.username }}</td>
+              <td data-label="Email" class="mono">{{ row.email }}</td>
+              <td data-label="2FA">
                 {% if row.app_2fa_enabled and row.totp_secret %}
-                  <wa-tag size="small" variant="success">App</wa-tag>
+                  <wa-tag size="s" variant="success">App</wa-tag>
                 {% else %}
-                  <wa-tag size="small" variant="neutral">Email</wa-tag>
+                  <wa-tag size="s" variant="neutral">Email</wa-tag>
                 {% endif %}
               </td>
-              <td class="mono">{{ row.last_login_at ? (row.last_login_at|format_dt_utc('Y-m-d H:i')) : '' }}</td>
-              <td style="text-align: right">
+              <td data-label="Last Login" class="mono">{{ row.last_login_at ? (row.last_login_at|format_dt_utc('Y-m-d H:i')) : '' }}</td>
+              <td data-label="Actions" style="text-align: right">
                 <wa-button href="/admin/admins/{{ row.id }}" variant="neutral" size="s">Edit</wa-button>
               </td>
             </tr>
