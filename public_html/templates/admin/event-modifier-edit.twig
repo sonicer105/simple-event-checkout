@@ -1,0 +1,41 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'events' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">{{ is_new ? 'New Modifier' : 'Edit Modifier' }}</div>
+        <div class="admin-subtitle">{{ event.name }}</div>
+      </div>
+      <wa-button href="/admin/events/{{ event.id }}/modifiers" variant="neutral">Back</wa-button>
+    </div>
+
+    {% if error %}
+      <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+    {% endif %}
+
+    <form method="post" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <wa-input name="name" label="Name" value="{{ modifier.name ?? '' }}" required></wa-input>
+
+      <div class="admin-form-row">
+        <wa-select name="modifier_type" label="Type" required>
+          {% for t in types %}
+            <wa-option value="{{ t }}" {% if (modifier.modifier_type ?? 'text') == t %}selected{% endif %}>{{ t }}</wa-option>
+          {% endfor %}
+        </wa-select>
+        <wa-select name="is_required" label="Required" required>
+          <wa-option value="0" {% if (modifier.is_required ?? 0) == 0 %}selected{% endif %}>No</wa-option>
+          <wa-option value="1" {% if (modifier.is_required ?? 0) == 1 %}selected{% endif %}>Yes</wa-option>
+        </wa-select>
+      </div>
+
+      <wa-input type="number" name="sort_order" label="Sort Order" value="{{ modifier.sort_order ?? 0 }}" required></wa-input>
+
+      <wa-button type="submit" variant="primary">{{ is_new ? 'Create Modifier' : 'Save Changes' }}</wa-button>
+    </form>
+  </wa-card>
+{% endblock %}
+

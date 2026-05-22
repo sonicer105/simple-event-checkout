@@ -1,0 +1,53 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'dashboard' %}
+
+{% block admin_content %}
+  <div class="wa-stack wa-gap-l">
+    <wa-card class="admin-card">
+      <div class="admin-title">Dashboard</div>
+
+      {% if not admin.app_2fa_enabled %}
+        <wa-callout variant="warning" class="admin-callout">
+          App-based 2FA is not enabled yet. Email 2FA is used until you set up an authenticator app.
+          <wa-button href="/admin/2fa/enroll" variant="primary" size="s">Set Up App 2FA (QR)</wa-button>
+        </wa-callout>
+      {% endif %}
+    </wa-card>
+
+    {% if no_events %}
+      <wa-callout variant="neutral">Create an event first to see dashboard analytics.</wa-callout>
+    {% else %}
+
+    <div class="wa-grid wa-gap-l" style="--min-column-size: 38ch">
+      <wa-card class="admin-card">
+        <div class="wa-stack wa-gap-m">
+          <div class="admin-title" style="font-size: 1.1rem;">Top Events (Tickets)</div>
+
+          {% if top_events|length == 0 %}
+            <wa-callout variant="neutral">No ticket sales yet.</wa-callout>
+          {% else %}
+            <wa-bar-chart orientation="horizontal" label="Top Events by Tickets" description="Top 10 events by tickets sold (paid, non-refunded).">
+              <script type="application/json">{{ bar_config|json_encode|raw }}</script>
+            </wa-bar-chart>
+          {% endif %}
+        </div>
+      </wa-card>
+
+      <wa-card class="admin-card">
+        <div class="wa-stack wa-gap-m">
+          <div class="admin-title" style="font-size: 1.1rem;">Tickets Over Time</div>
+
+          {% if not line_config %}
+            <wa-callout variant="neutral">No ticket data yet.</wa-callout>
+          {% else %}
+            <wa-line-chart label="Tickets" description="Cumulative tickets sold leading up to the event start (last 52 weeks).">
+              <script type="application/json">{{ line_config|json_encode|raw }}</script>
+            </wa-line-chart>
+          {% endif %}
+        </div>
+      </wa-card>
+    </div>
+    {% endif %}
+  </div>
+{% endblock %}

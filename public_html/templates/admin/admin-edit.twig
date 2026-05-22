@@ -1,0 +1,69 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'admins' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">{{ is_new ? 'New Admin' : 'Edit Admin' }}</div>
+        <div class="admin-subtitle">{{ is_new ? 'Create a new admin account.' : 'Update email/password or reset 2FA enrollment.' }}</div>
+      </div>
+      <wa-button href="/admin/admins" variant="neutral">Back</wa-button>
+    </div>
+
+    {% if error %}
+      <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+    {% endif %}
+
+    <form method="post" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if is_new %}
+        <wa-input name="username" label="Username" value="{{ form.username ?? '' }}" required></wa-input>
+      {% else %}
+        <wa-input name="username" label="Username" value="{{ form.username ?? '' }}" disabled></wa-input>
+      {% endif %}
+
+      <wa-input name="email" label="Email" value="{{ form.email ?? '' }}" required></wa-input>
+
+      <wa-input type="password" name="password" label="Password" help-text="{{ is_new ? 'At least 10 characters.' : 'Leave blank to keep existing password.' }}" value=""></wa-input>
+
+      <wa-button type="submit" variant="primary">Save</wa-button>
+    </form>
+
+    {% if not is_new and target_admin %}
+      <wa-divider></wa-divider>
+
+      <div class="admin-section-title">Danger Zone</div>
+      <div class="wa-stack wa-gap-s">
+        {% if target_admin.app_2fa_enabled and target_admin.totp_secret %}
+          <form method="post" action="/admin/admins/{{ target_admin.id }}/reset-2fa">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <wa-button type="submit" variant="warning" onclick="return confirm('Reset 2FA enrollment for this admin? They will need to re-enroll on next login.');">
+              <wa-icon slot="start" name="rotate" variant="solid"></wa-icon>
+              Reset 2FA Enrollment
+            </wa-button>
+          </form>
+        {% else %}
+          <wa-callout variant="neutral">
+            App-based 2FA is not enrolled for this admin. Email 2FA will be used at login.
+          </wa-callout>
+        {% endif %}
+
+        {% if (admin.id ?? 0) != target_admin.id %}
+          <form method="post" action="/admin/admins/{{ target_admin.id }}/delete">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <wa-button type="submit" variant="danger" onclick="return confirm('Delete this admin account? This action cannot be reversed.');">
+              <wa-icon slot="start" name="trash" variant="solid"></wa-icon>
+              Delete Admin (Cannot Be Reversed)
+            </wa-button>
+          </form>
+        {% else %}
+          <wa-callout variant="neutral">
+            You can’t delete the account you’re currently logged in as.
+          </wa-callout>
+        {% endif %}
+      </div>
+    {% endif %}
+  </wa-card>
+{% endblock %}

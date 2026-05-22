@@ -1,0 +1,39 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'audit' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-title">Audit Log</div>
+    <p>Most recent events (newest first).</p>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Admin</th>
+            <th>IP</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in logs %}
+            <tr>
+              <td class="mono">{{ row.created_at|format_dt_utc('Y-m-d H:i') }}</td>
+              <td><wa-tag size="small">{{ row.event_type }}</wa-tag></td>
+              <td class="mono">{{ row.admin_id ?? '' }}</td>
+              <td class="mono">{{ row.ip ?? '' }}</td>
+              <td>{{ row.message ?? '' }}</td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No audit log entries yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </wa-card>
+{% endblock %}

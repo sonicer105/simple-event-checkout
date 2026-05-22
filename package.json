@@ -1,0 +1,11 @@
+{
+  "scripts": {
+    "sync:vendor": "node scripts/sync-vendor.mjs",
+    "postinstall": "npm run sync:vendor"
+  },
+  "dependencies": {
+    "@awesome.me/kit-9cf22d5862": "^1.0.3",
+    "@web.awesome.me/webawesome-pro": "^3.6.0",
+    "@zxing/browser": "^0.1.5"
+  }
+}

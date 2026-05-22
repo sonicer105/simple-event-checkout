@@ -1,0 +1,79 @@
+<?php
+
+declare(strict_types=1);
+
+if (!defined('ABS_PATH')) {
+    http_response_code(403);
+    exit('Direct access not allowed.');
+}
+
+// How it works:
+// - `public_html/config/config.php` provides defaults.
+// - `public_html/config/local.php` overrides those defaults via `array_replace_recursive()`.
+//
+// Usage:
+// 1. Copy this file to `public_html/config/local.php`
+// 2. Fill in secrets and any environment-specific overrides
+//
+// NOTE: You can omit any keys you don't want to override. Check config.php for default values.
+
+return [
+    // App environment: set to `dev` to enable Whoops/debug features.
+    // 'app_env' => 'dev',
+
+    // Branding
+    // 'app_name' => 'Simple Event Checkout',
+
+    // Base URL used for redirect/callback links.
+    // Examples:
+    // - Local dev: 'http://localhost:7879/'
+    // - Prod: 'https://events.example.com/'
+    // 'base_url' => 'http://localhost:7879/',
+
+    // Display timezone (used for formatting datetimes in the UI).
+    // 'app_timezone' => 'America/Vancouver',
+
+    // Global store currency (only mono-currency is supported).
+    // 'store_currency' => 'CAD',
+
+    // Square hosted checkout configuration.
+    'square' => [
+        // 'environment' => 'sandbox', // sandbox|production
+        'access_token' => '',
+        'location_id' => '',
+        // 'version' => '2026-01-22',
+    ],
+
+    // Database connection.
+    // In docker dev, DB host is typically `db`. On bare metal, usually `127.0.0.1`.
+    // 'db' => [
+    //     'host' => 'db',
+    //     'port' => 3306,
+    //     'name' => 'simple_event_checkout',
+    //     'user' => 'simple_event_checkout',
+    //     'pass' => 'change-me',
+    //     'charset' => 'utf8mb4',
+    // ],
+
+    // Trusted proxy settings (only needed if you're behind Cloudflare / a reverse proxy and don't have the remote host
+    // IP otherwise corrected). These are used by `RequestUtil::clientIp()`.
+    // 'security' => [
+    //     'trusted_proxy_ip' => '',
+    //     'trusted_proxy_header' => '',
+    //
+    //     // Set true when TLS terminates upstream (e.g. cloudflared) and PHP never sees HTTPS=on.
+    //     // This forces cookies to be marked Secure.
+    //     'force_https' => true,
+    // ],
+
+    // SMTP settings for outbound email.
+    'smtp' => [
+        'host' => '',
+        'port' => 587,
+        'username' => '',
+        'password' => '',
+        'encryption' => 'tls',
+        'from_email' => 'no-reply@example.com',
+        'from_name' => 'Simple Event Checkout',
+    ],
+];

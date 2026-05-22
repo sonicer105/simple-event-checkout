@@ -1,0 +1,124 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'purchases' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-title">Purchase #{{ purchase.id }}</div>
+
+    <div class="admin-kv">
+      <div class="admin-kv-row"><div class="admin-kv-key">Created</div><div class="admin-kv-val mono">{{ purchase.created_at|format_dt_utc('Y-m-d H:i') }}</div></div>
+      <div class="admin-kv-row"><div class="admin-kv-key">Email</div><div class="admin-kv-val mono">{{ purchase.email }}</div></div>
+      <div class="admin-kv-row"><div class="admin-kv-key">Total (cents)</div><div class="admin-kv-val mono">{{ purchase.total_cents }}</div></div>
+      <div class="admin-kv-row"><div class="admin-kv-key">Status</div><div class="admin-kv-val"><wa-tag size="small">{{ purchase.payment_status }}</wa-tag></div></div>
+      <div class="admin-kv-row">
+        <div class="admin-kv-key">QR Email</div>
+        <div class="admin-kv-val">
+          {% if purchase.receipt_email_sent_at %}
+            <wa-tag size="small" variant="success">Sent</wa-tag>
+            <span class="wa-caption-s mono">{{ purchase.receipt_email_sent_at|format_dt_utc('Y-m-d H:i') }}</span>
+          {% else %}
+            <wa-tag size="small" variant="warning">Not sent</wa-tag>
+            {% if purchase.receipt_email_error %}
+              <span class="wa-caption-s">{{ purchase.receipt_email_error }}</span>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    {% if purchase.email %}
+      <div style="margin-top: 12px;">
+        <form method="post" action="/admin/purchases/{{ purchase.id }}/resend-email" class="wa-cluster wa-gap-s wa-align-items-end">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <wa-button type="submit" variant="neutral">
+            <wa-icon slot="start" name="paper-plane" variant="solid"></wa-icon>
+            Re-send QR Email
+          </wa-button>
+          <span class="wa-caption-s">Sends to {{ purchase.email }}</span>
+        </form>
+      </div>
+    {% endif %}
+
+    {% if purchase.payment_status != 'refunded' %}
+      <div style="margin-top: 10px;">
+        <form method="post" action="/admin/purchases/{{ purchase.id }}/mark-refunded">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <wa-button type="submit" variant="danger" onclick="return confirm('Mark this purchase as REFUNDED? This action cannot be reversed.');">
+            <wa-icon slot="start" name="rotate-left" variant="solid"></wa-icon>
+            Mark Refunded (Cannot Be Reversed)
+          </wa-button>
+        </form>
+      </div>
+    {% endif %}
+
+    <wa-divider></wa-divider>
+
+    <div class="admin-section-title">Tickets</div>
+    <div class="wa-stack wa-gap-xl">
+      {% for row in tickets %}
+        <article class="wa-flank wa-gap-xl" style="--flank-size: 0rem">
+          <div class="wa-flank:end wa-align-items-start">
+            <div class="wa-stack wa-gap-2xs">
+              <div class="wa-split wa-align-items-baseline">
+                <div class="wa-stack wa-gap-3xs">
+                  <strong>{{ row.event_name }}</strong>
+                  <span class="wa-caption-s">Ticket #{{ row.id }}</span>
+                </div>
+                <strong>{{ row.unit_price_cents|format_money }}</strong>
+              </div>
+
+              {% if row.variation_name %}
+                <span class="wa-caption-s">{{ row.variation_name }}</span>
+              {% endif %}
+
+              {% if row.addons is defined and row.addons|length > 0 %}
+                <div class="wa-stack wa-gap-3xs">
+                  <span class="wa-caption-s"><strong>Add-ons</strong></span>
+                  {% for a in row.addons %}
+                    <span class="wa-caption-s">
+                      {{ a.addon_name }} — {{ a.unit_price_cents|format_money }} × {{ a.quantity }}
+                    </span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              {% if row.modifiers is defined and row.modifiers|length > 0 %}
+                <div class="wa-stack wa-gap-3xs">
+                  <span class="wa-caption-s"><strong>Details</strong></span>
+                  {% for m in row.modifiers %}
+                    <span class="wa-caption-s">
+                      {% if m.modifier_type == 'checkbox' %}
+                        {{ m.modifier_name }}
+                      {% else %}
+                        {{ m.modifier_name }}: {{ m.value }}
+                      {% endif %}
+                    </span>
+                  {% endfor %}
+                </div>
+              {% endif %}
+
+              <div class="wa-cluster wa-gap-s">
+                {% if row.checked_in_at %}
+                  <wa-tag size="small" variant="success">Checked in</wa-tag>
+                  <span class="wa-caption-s mono">{{ row.checked_in_at|format_dt_utc('Y-m-d H:i') }}</span>
+                {% else %}
+                  <wa-tag size="small" variant="neutral">Not checked in</wa-tag>
+                {% endif %}
+              </div>
+
+              <details>
+                <summary class="wa-caption-s">QR token</summary>
+                <div class="mono" style="word-break: break-all;">{{ row.qr_token }}</div>
+              </details>
+            </div>
+          </div>
+        </article>
+      {% else %}
+        <wa-card>
+          <p>No tickets on this purchase.</p>
+        </wa-card>
+      {% endfor %}
+    </div>
+  </wa-card>
+{% endblock %}

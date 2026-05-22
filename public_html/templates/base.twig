@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
+    <title>{{ title ?? (app.app_name ?? 'Simple Event Checkout') }}</title>
+    <link rel="stylesheet" href="/assets/vendor/webawesome/styles/webawesome.css" />
+    <link rel="stylesheet" href="/assets/vendor/webawesome/styles/themes/default.css" />
+    <link rel="stylesheet" href="/assets/app.css" />
+  </head>
+  <body>
+    {% if show_public_nav %}
+      <div class="public-topbar-wrap">
+        <div class="public-topbar">
+          <a href="/" class="wa-link-plain public-brand">{{ app.app_name ?? 'Simple Event Checkout' }}</a>
+          <nav class="public-nav" aria-label="Primary">
+            <wa-button-group>
+              <wa-button href="/" appearance="plain">Events</wa-button>
+              <wa-button href="/cart" variant="neutral">
+                <wa-icon slot="start" name="cart-shopping" variant="solid"></wa-icon>
+                Cart
+              </wa-button>
+            </wa-button-group>
+          </nav>
+        </div>
+      </div>
+    {% endif %}
+    <div class="page">
+      {% block content %}{% endblock %}
+    </div>
+
+    <script type="module" src="/assets/webawesome-init.js"></script>
+  </body>
+</html>

@@ -1,0 +1,37 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'dashboard' %}
+
+{% block admin_content %}
+  <div class="auth-card">
+    <wa-card class="auth-panel">
+      <div class="auth-header">
+        <div class="auth-title">Set Up App-Based 2FA</div>
+        <div class="auth-subtitle">Scan the QR code or enter the secret in your authenticator app.</div>
+      </div>
+
+      {% if error %}
+        <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+      {% endif %}
+
+      <div class="enroll-grid">
+        <wa-qr-code value="{{ provisioning_uri }}" size="160"></wa-qr-code>
+        <div>
+          <div class="enroll-label">Secret</div>
+          <div class="enroll-secret">{{ secret }}</div>
+        </div>
+      </div>
+
+      <form method="post" action="/admin/2fa/enroll" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <wa-input name="code" label="Authentication Code" inputmode="numeric" autocomplete="one-time-code" required></wa-input>
+        <wa-button type="submit" variant="primary">Confirm & Enable</wa-button>
+      </form>
+
+      <form method="post" action="/admin/2fa/enroll/reset" class="auth-form auth-form-secondary">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <wa-button type="submit" variant="neutral">Regenerate QR</wa-button>
+      </form>
+    </wa-card>
+  </div>
+{% endblock %}

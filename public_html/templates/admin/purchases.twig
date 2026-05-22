@@ -1,0 +1,49 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'purchases' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-title">Purchases</div>
+    <p>Most recent purchases (newest first).</p>
+
+
+    <form method="get" class="wa-cluster wa-gap-s wa-align-items-end" style="margin: 12px 0 14px;">
+      <wa-select name="event_id" label="Event Filter">
+        <wa-option value="" {% if (filter_event_id ?? 0) == 0 %}selected{% endif %}>All events</wa-option>
+        {% for e in events ?? [] %}
+          <wa-option value="{{ e.id }}" {% if (filter_event_id ?? 0) == e.id %}selected{% endif %}>{{ e.name }}</wa-option>
+        {% endfor %}
+      </wa-select>
+      <wa-button type="submit" variant="neutral">Apply</wa-button>
+    </form>
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Time</th>
+            <th>Email</th>
+            <th>Total</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in purchases %}
+            <tr>
+              <td class="mono"><a href="/admin/purchases/{{ row.id }}">{{ row.id }}</a></td>
+              <td class="mono">{{ row.created_at|format_dt_utc('Y-m-d H:i') }}</td>
+              <td class="mono">{{ row.email }}</td>
+              <td class="mono">{{ row.total_cents }}</td>
+              <td><wa-tag size="small">{{ row.payment_status }}</wa-tag></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No purchases yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </wa-card>
+{% endblock %}

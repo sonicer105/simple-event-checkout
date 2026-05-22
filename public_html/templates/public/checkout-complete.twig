@@ -1,0 +1,31 @@
+{% extends "base.twig" %}
+{% set show_public_nav = true %}
+
+{% block content %}
+  <div class="wa-stack wa-gap-2xl">
+    <h2 class="wa-heading-xl">Checkout</h2>
+
+    {% if ok %}
+      <wa-callout variant="success">
+        {{ message ?? 'Payment completed.' }}
+        {% if purchase_id is defined %}
+          <div class="wa-caption-s" style="margin-top: 6px;">Reference: #{{ purchase_id }}</div>
+        {% endif %}
+      </wa-callout>
+
+      {% if email_sent is defined and not email_sent %}
+        <wa-callout variant="warning">
+          We couldn't email your QR codes. Please contact event staff at check-in.
+        </wa-callout>
+      {% endif %}
+    {% else %}
+      <wa-callout variant="danger">
+        {{ message ?? 'Payment could not be verified.' }}
+      </wa-callout>
+    {% endif %}
+
+    <div class="wa-cluster wa-gap-s">
+      <wa-button href="/" variant="neutral">Back to Events</wa-button>
+    </div>
+  </div>
+{% endblock %}

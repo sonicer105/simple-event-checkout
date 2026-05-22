@@ -1,0 +1,520 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #f7f7f5;
+  color: #1c1c1c;
+}
+
+.page,
+.public-topbar {
+  --page-max-width: 1120px;
+}
+
+.public-topbar-wrap {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(247, 247, 245, 0.88);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  /* Reserve height to reduce layout shift before web components hydrate. */
+  min-height: 60px;
+}
+
+.page {
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: 48px 24px;
+}
+
+.public-topbar {
+  max-width: var(--page-max-width);
+  margin: 0 auto;
+  padding: 12px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.public-brand {
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.public-nav wa-button::part(base) {
+  border-radius: 999px;
+}
+
+/* Admin check-in */
+.checkin-video {
+  width: 100%;
+  max-width: 520px;
+  background: #111;
+  border-radius: 16px;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.checkin-ticket {
+  margin-top: 14px;
+}
+
+.checkin-head {
+  display: grid;
+  gap: 4px;
+}
+
+.checkin-event {
+  font-size: var(--wa-font-size-l);
+  font-weight: var(--wa-font-weight-semibold);
+  line-height: 1.2;
+}
+
+.checkin-variation {
+  color: var(--wa-color-neutral-600);
+  font-size: var(--wa-font-size-s);
+}
+
+.checkin-mods {
+  display: grid;
+  gap: 6px;
+}
+
+.checkin-mod {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  font-size: var(--wa-font-size-m);
+}
+
+.checkin-mod-name {
+  font-weight: var(--wa-font-weight-semibold);
+}
+
+.checkin-mod-val {
+  color: var(--wa-color-neutral-700);
+}
+
+.checkin-section-title {
+  font-size: var(--wa-font-size-s);
+  font-weight: var(--wa-font-weight-semibold);
+  color: var(--wa-color-neutral-700);
+  margin-bottom: 4px;
+}
+
+.checkin-meta {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  font-size: var(--wa-font-size-s);
+  color: var(--wa-color-neutral-700);
+}
+
+.checkin-meta-label {
+  font-weight: var(--wa-font-weight-semibold);
+}
+
+/* Reduce layout shift while Web Awesome custom elements are still upgrading. */
+wa-button:not(:defined),
+wa-button-group:not(:defined) {
+  display: inline-block;
+}
+
+wa-button:not(:defined) {
+  min-height: 40px;
+  min-width: 88px;
+}
+
+wa-icon:not(:defined) {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+}
+
+/* Prevent image aspect from shifting once loaded. */
+.wa-frame > img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.card {
+  padding: 24px;
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  margin: 0 0 12px;
+}
+
+p {
+  margin: 0 0 12px;
+  line-height: 1.6;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.auth-card {
+  display: flex;
+  justify-content: center;
+}
+
+.auth-panel {
+  width: min(460px, 100%);
+  padding: 24px;
+}
+
+.auth-header {
+  margin-bottom: 16px;
+}
+
+.auth-title {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.auth-subtitle {
+  color: #5b5b5b;
+}
+
+.auth-subtle {
+  color: #5b5b5b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+}
+
+.auth-form + .auth-form {
+  margin-top: 12px;
+}
+
+.auth-form-secondary {
+  margin-top: 12px;
+}
+
+.auth-callout {
+  margin-bottom: 16px;
+}
+
+.admin-shell {
+  display: grid;
+  gap: 20px;
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-title {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.admin-subtitle {
+  color: #5b5b5b;
+}
+
+.admin-card {
+  /* wa-card uses --spacing for internal padding; set it here for consistent control */
+  --spacing: var(--wa-space-l);
+}
+
+@media (max-width: 600px) {
+  .page {
+    padding: 22px 14px;
+  }
+
+  .public-topbar {
+    padding: 10px 14px;
+  }
+
+  .admin-card {
+    --spacing: var(--wa-space-s);
+  }
+
+  .admin-title {
+    font-size: 24px;
+  }
+}
+
+.admin-callout {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.admin-layout {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.admin-brand-title {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.admin-brand-subtitle {
+  color: #5b5b5b;
+  font-size: 13px;
+}
+
+.admin-main {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-nav-card {
+  padding: 12px;
+}
+
+.admin-nav-links {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 800px) {
+  .admin-main {
+    grid-template-columns: 1fr;
+  }
+  .admin-nav-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.enroll-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+  justify-items: center;
+  margin-bottom: 20px;
+}
+
+.enroll-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #777777;
+  margin-bottom: 6px;
+}
+
+.enroll-secret {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 16px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f1f1ef;
+  overflow-wrap: anywhere;
+  width: min(520px, 100%);
+  box-sizing: border-box;
+}
+
+.admin-table-wrap {
+  overflow: auto;
+  border-radius: 12px;
+  border: 1px solid #e7e7e3;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid #efefea;
+  vertical-align: top;
+}
+
+.admin-table th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6a6a6a;
+  background: #fafaf8;
+}
+
+.admin-kv {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.admin-kv-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+}
+
+.admin-kv-key {
+  color: #6a6a6a;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.admin-kv-val {
+  color: #1c1c1c;
+}
+
+.admin-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 16px 0 10px;
+}
+
+.admin-header-row {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.admin-actions-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.admin-form {
+  display: grid;
+  gap: 16px;
+}
+
+.admin-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 800px) {
+  .admin-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.public-event-grid {
+  display: grid;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.public-event {
+  padding: 16px;
+}
+
+.public-event-title {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.public-event-meta {
+  margin-top: 6px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #5b5b5b;
+  font-size: 13px;
+}
+
+.public-event-desc {
+  margin-top: 10px;
+}
+
+.addon-row {
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 12px;
+  align-items: end;
+}
+
+.cart-qty-form {
+  display: grid;
+  grid-template-columns: 120px auto;
+  gap: 8px;
+  align-items: end;
+}
+
+@media (max-width: 800px) {
+  .addon-row {
+    grid-template-columns: 1fr;
+  }
+  .cart-qty-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+.public-hero-card {
+  padding: 18px;
+}
+
+.public-hero-grid {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.public-hero-media img {
+  width: 100%;
+  height: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  display: block;
+}
+
+.public-hero-title {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.public-hero-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #5b5b5b;
+}
+
+.public-hero-desc {
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+@media (max-width: 900px) {
+  .public-hero-title {
+    font-size: 22px;
+  }
+}

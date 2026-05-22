@@ -1,0 +1,45 @@
+{% extends "base.twig" %}
+{% set show_public_nav = true %}
+
+{% block content %}
+  <div class="wa-stack wa-gap-2xl">
+    <div class="wa-stack wa-gap-xs">
+      <div class="admin-title">Upcoming Events</div>
+    </div>
+
+    {% for e in events %}
+      <wa-card class="public-hero-card">
+        <div class="public-hero-grid">
+          <div class="wa-frame wa-border-radius-l public-hero-media">
+            <img
+              src="{{ e.image_path ?: '/assets/img/placeholder.png' }}"
+              alt="{{ e.name }}"
+              loading="lazy"
+            />
+          </div>
+
+          <div class="wa-stack wa-gap-m public-hero-body">
+            <div class="wa-stack wa-gap-2xs">
+              <div class="public-hero-title">{{ e.name }}</div>
+              <div class="public-hero-meta">
+                <span>{{ e.start_time|format_dt('F j, Y') }}</span>
+                {% if e.location %}<span>•</span><span>{{ e.location }}</span>{% endif %}
+              </div>
+            </div>
+
+            <div class="public-hero-desc">{{ e.short_description }}</div>
+
+            <div class="wa-cluster wa-gap-s wa-align-items-center">
+              <wa-button href="/events/{{ e.slug }}" variant="primary">View Details</wa-button>
+              {% if e.price_cents is not null and e.price_cents != 0 %}
+                <wa-tag>${{ (e.price_cents / 100)|number_format(2, '.', ',') }}</wa-tag>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </wa-card>
+    {% else %}
+      <wa-callout variant="neutral">No events yet.</wa-callout>
+    {% endfor %}
+  </div>
+{% endblock %}

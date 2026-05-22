@@ -1,0 +1,36 @@
+{% extends "base.twig" %}
+
+{% block content %}
+  <div class="auth-card">
+    <wa-card class="auth-panel">
+      <div class="auth-header">
+        <div class="auth-title">Email Two-Factor</div>
+        <div class="auth-subtitle">Enter the code we sent to {{ email }}.</div>
+      </div>
+
+      {% if error %}
+        <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+      {% endif %}
+
+      <form method="post" action="/admin/2fa-email" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <wa-input name="code" label="Email Code" inputmode="numeric" autocomplete="one-time-code" required></wa-input>
+        <wa-button type="submit" variant="primary">Verify</wa-button>
+      </form>
+
+      <form method="post" action="/admin/2fa-email/resend" class="auth-form auth-form-secondary">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <wa-button type="submit" variant="neutral">Resend Code</wa-button>
+      </form>
+
+      <wa-divider style="margin: 16px 0;"></wa-divider>
+
+      <div class="auth-subtle">
+        Prefer using an authenticator app? Set up app-based 2FA (with a QR code) after you sign in.
+      </div>
+      <div style="margin-top: 10px;">
+        <wa-button href="/admin/2fa/enroll" variant="neutral">Set Up App 2FA (QR)</wa-button>
+      </div>
+    </wa-card>
+  </div>
+{% endblock %}

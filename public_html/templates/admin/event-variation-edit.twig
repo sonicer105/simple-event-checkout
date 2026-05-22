@@ -1,0 +1,32 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'events' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">{{ is_new ? 'New Variation' : 'Edit Variation' }}</div>
+        <div class="admin-subtitle">{{ event.name }}</div>
+      </div>
+      <wa-button href="/admin/events/{{ event.id }}/variations" variant="neutral">Back</wa-button>
+    </div>
+
+    {% if error %}
+      <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+    {% endif %}
+
+    <form method="post" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <wa-input name="name" label="Name" value="{{ variation.name ?? '' }}" required></wa-input>
+      <div class="admin-form-row">
+        <wa-input type="number" name="price_cents" label="Price (cents)" value="{{ variation.price_cents ?? '' }}" required></wa-input>
+        <wa-input type="number" name="stock_limit" label="Stock Limit" value="{{ variation.stock_limit ?? '' }}"></wa-input>
+      </div>
+      <wa-input type="number" name="sort_order" label="Sort Order" value="{{ variation.sort_order ?? 0 }}" required></wa-input>
+
+      <wa-button type="submit" variant="primary">{{ is_new ? 'Create Variation' : 'Save Changes' }}</wa-button>
+    </form>
+  </wa-card>
+{% endblock %}
+

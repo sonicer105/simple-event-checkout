@@ -1,0 +1,96 @@
+{% extends "base.twig" %}
+{% set show_public_nav = true %}
+
+{% block content %}
+  <div class="wa-stack wa-gap-2xl">
+    <h2 class="wa-heading-xl">Cart</h2>
+
+    <div class="wa-grid wa-align-items-start wa-gap-2xl">
+      <div class="wa-stack wa-gap-xl">
+        {% for row in items %}
+          <article class="wa-flank wa-gap-xl" style="--flank-size: 8rem">
+            <div class="wa-frame wa-border-radius-m">
+              <img
+                src="{{ row.image_path ?: '/assets/img/placeholder.png' }}"
+                alt="{{ row.event_name }}"
+                loading="lazy"
+              />
+            </div>
+
+            <div class="wa-flank:end wa-align-items-baseline">
+              <div class="wa-stack wa-gap-2xs">
+                <h3 class="wa-heading-m" style="margin: 0;">
+                  <a class="wa-link" href="/events/{{ row.event_slug }}">{{ row.event_name }}</a>
+                </h3>
+
+                <span class="wa-caption-s">
+                  {{ row.variation_name ? (row.variation_name ~ ' — ') : '' }}{{ row.unit_price_cents|format_money }} × {{ row.quantity }}
+                </span>
+
+                {% if row.addons is defined and row.addons|length > 0 %}
+                  <div class="wa-stack wa-gap-3xs">
+                    <span class="wa-caption-s"><strong>Add-ons</strong></span>
+                    {% for a in row.addons %}
+                      <span class="wa-caption-s">
+                        {{ a.addon_name }} — {{ a.unit_price_cents|format_money }} × {{ a.quantity }}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                {% if row.modifiers is defined and row.modifiers|length > 0 %}
+                  <div class="wa-stack wa-gap-3xs">
+                    <span class="wa-caption-s"><strong>Details</strong></span>
+                    {% for m in row.modifiers %}
+                      <span class="wa-caption-s">
+                        {% if m.modifier_type == 'checkbox' %}
+                          {{ m.modifier_name }}
+                        {% else %}
+                          {{ m.modifier_name }}: {{ m.value }}
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                <strong style="margin-top: 6px;">{{ row.line_total_cents|format_money }}</strong>
+              </div>
+
+              <form method="post" action="/cart/item/{{ row.id }}/remove">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <wa-button id="remove-{{ row.id }}" type="submit" appearance="plain" size="s">
+                  <wa-icon name="xmark" label="Remove"></wa-icon>
+                </wa-button>
+                <wa-tooltip for="remove-{{ row.id }}">Remove</wa-tooltip>
+              </form>
+            </div>
+          </article>
+        {% else %}
+          <wa-card class="card">
+            <p>Your cart is empty.</p>
+          </wa-card>
+        {% endfor %}
+      </div>
+
+      {% if items|length > 0 %}
+        <wa-card>
+          <div slot="header">
+            <h3 class="wa-heading-l">Order Summary</h3>
+          </div>
+          <div class="wa-stack">
+            <div class="wa-split">
+              <span class="wa-caption-m">Subtotal</span>
+              <strong>{{ (subtotal_cents ?? 0)|format_money }}</strong>
+            </div>
+            <wa-divider></wa-divider>
+          <div class="wa-split wa-body-l">
+            <span>Total</span>
+            <strong>{{ (subtotal_cents ?? 0)|format_money }}</strong>
+          </div>
+          <wa-button href="/checkout" variant="brand">Checkout</wa-button>
+        </div>
+      </wa-card>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

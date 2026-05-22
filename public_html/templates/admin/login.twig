@@ -1,0 +1,23 @@
+{% extends "base.twig" %}
+
+{% block content %}
+  <div class="auth-card">
+    <wa-card class="auth-panel">
+      <div class="auth-header">
+        <div class="auth-title">Admin Login</div>
+        <div class="auth-subtitle">Use your admin credentials to continue.</div>
+      </div>
+
+      {% if error %}
+        <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+      {% endif %}
+
+      <form method="post" action="/admin/login" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <wa-input name="username" label="Username" autocomplete="username" required></wa-input>
+        <wa-input type="password" name="password" label="Password" autocomplete="current-password" required></wa-input>
+        <wa-button type="submit" variant="primary">Sign in</wa-button>
+      </form>
+    </wa-card>
+  </div>
+{% endblock %}

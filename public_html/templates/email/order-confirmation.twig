@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Order Confirmation</title>
+  </head>
+  <body style="margin:0; padding:0; background:#f7f7f5; color:#1c1c1c; font-family:system-ui,-apple-system,Segoe UI,sans-serif;">
+    <div style="max-width:720px; margin:0 auto; padding:24px;">
+      <div style="background:#ffffff; border-radius:16px; padding:22px; box-shadow:0 12px 24px rgba(0,0,0,0.08);">
+        <h1 style="margin:0 0 8px; font-size:22px;">{{ app.app_name ?? 'Simple Event Checkout' }}</h1>
+        <p style="margin:0 0 14px; line-height:1.6;">
+          Thanks for your order.
+          {% if purchase_id is defined %}Reference <strong>#{{ purchase_id }}</strong>.{% endif %}
+        </p>
+
+        <p style="margin:0 0 18px; color:#5b5b5b; font-size:13px; line-height:1.6;">
+          Present the QR code(s) below at check-in. Keep this email private—anyone with the QR code may be able to check in.
+        </p>
+
+        <div style="border-top:1px solid #eee; margin:18px 0;"></div>
+
+        {% for t in tickets %}
+          <div style="padding:14px 0;">
+            <div>
+              <div style="margin-bottom:14px;">
+                <h2 style="margin:0 0 6px; font-size:16px;">{{ t.event_name }}</h2>
+                {% if t.variation_name %}
+                  <div style="margin:0 0 6px; color:#5b5b5b; font-size:13px;">{{ t.variation_name }}</div>
+                {% endif %}
+
+                {% if t.modifiers is defined and t.modifiers|length > 0 %}
+                  <div style="margin-top:10px;">
+                    <div style="font-weight:700; font-size:13px; margin-bottom:4px;">Details</div>
+                    {% for m in t.modifiers %}
+                      <div style="color:#3b3b3b; font-size:13px; line-height:1.5;">
+                        {% if m.modifier_type == 'checkbox' %}
+                          {{ m.modifier_name }}
+                        {% else %}
+                          {{ m.modifier_name }}: {{ m.value }}
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                {% if t.addons is defined and t.addons|length > 0 %}
+                  <div style="margin-top:10px;">
+                    <div style="font-weight:700; font-size:13px; margin-bottom:4px;">Add-ons</div>
+                    {% for a in t.addons %}
+                      <div style="color:#3b3b3b; font-size:13px; line-height:1.5;">
+                        {{ a.addon_name }} — {{ a.unit_price_cents|format_money }} × {{ a.quantity }}
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              <div style="text-align:center;">
+                <img
+                  src="cid:{{ t.qr_cid }}"
+                  alt="QR code"
+                  width="240"
+                  height="240"
+                  style="display:block; margin:0 auto; max-width:100%; height:auto;"
+                />
+              </div>
+            </div>
+          </div>
+
+          {% if not loop.last %}
+            <div style="border-top:1px solid #eee;"></div>
+          {% endif %}
+        {% endfor %}
+
+        <div style="border-top:1px solid #eee; margin:18px 0;"></div>
+
+        <div style="display:flex; justify-content:space-between; gap:18px; flex-wrap:wrap; align-items:baseline; padding-top:6px;">
+          <div style="color:#5b5b5b; font-size:13px;">Total</div>
+          <div style="font-weight:800; padding-left:12px;">{{ (total_cents ?? 0)|format_money }} {{ currency ?? '' }}</div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

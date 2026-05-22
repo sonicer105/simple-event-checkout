@@ -1,0 +1,96 @@
+{% extends "base.twig" %}
+{% set show_public_nav = true %}
+
+{% block content %}
+  <div class="wa-stack wa-gap-2xl">
+    <h2 class="wa-heading-xl">Checkout</h2>
+
+    {% if items|length == 0 %}
+      <wa-card class="card">
+        <p>Your cart is empty.</p>
+        <wa-button href="/" variant="neutral">Browse events</wa-button>
+      </wa-card>
+    {% else %}
+      <div class="wa-grid wa-align-items-start wa-gap-2xl">
+        <wa-card>
+          <div slot="header">
+            <h3 class="wa-heading-l">Contact</h3>
+          </div>
+
+          {% if error %}
+            <wa-callout variant="danger" style="margin-bottom: 12px;">{{ error }}</wa-callout>
+          {% endif %}
+
+          <form method="post" action="/checkout/start" class="wa-stack wa-gap-m">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <wa-input name="email" type="email" label="Email" required value="{{ email }}"></wa-input>
+            <wa-button type="submit" variant="brand">
+              <wa-icon slot="start" name="arrow-right" variant="solid"></wa-icon>
+              Pay With Square
+            </wa-button>
+            <p class="wa-caption-s">
+              Payment is processed on Square’s hosted checkout page. You’ll be redirected back here after payment.
+            </p>
+          </form>
+        </wa-card>
+
+        <wa-card>
+          <div slot="header">
+            <h3 class="wa-heading-l">Order Summary</h3>
+          </div>
+          <div class="wa-stack wa-gap-m">
+            {% for row in items %}
+              <div class="wa-stack wa-gap-2xs">
+                <div class="wa-split wa-align-items-baseline">
+                  <strong>{{ row.event_name }}</strong>
+                  <strong>{{ row.line_total_cents|format_money }}</strong>
+                </div>
+                <span class="wa-caption-s">
+                  {{ row.variation_name ? (row.variation_name ~ ' — ') : '' }}{{ row.unit_price_cents|format_money }} × {{ row.quantity }}
+                </span>
+
+                {% if row.addons is defined and row.addons|length > 0 %}
+                  <div class="wa-stack wa-gap-3xs">
+                    <span class="wa-caption-s"><strong>Add-ons</strong></span>
+                    {% for a in row.addons %}
+                      <span class="wa-caption-s">
+                        {{ a.addon_name }} — {{ a.unit_price_cents|format_money }} × {{ a.quantity }}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+
+                {% if row.modifiers is defined and row.modifiers|length > 0 %}
+                  <div class="wa-stack wa-gap-3xs">
+                    <span class="wa-caption-s"><strong>Details</strong></span>
+                    {% for m in row.modifiers %}
+                      <span class="wa-caption-s">
+                        {% if m.modifier_type == 'checkbox' %}
+                          {{ m.modifier_name }}
+                        {% else %}
+                          {{ m.modifier_name }}: {{ m.value }}
+                        {% endif %}
+                      </span>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              </div>
+
+              {% if not loop.last %}
+                <wa-divider></wa-divider>
+              {% endif %}
+            {% endfor %}
+
+            <wa-divider></wa-divider>
+
+            <div class="wa-split wa-body-l">
+              <span>Total</span>
+              <strong>{{ (subtotal_cents ?? 0)|format_money }}</strong>
+            </div>
+          </div>
+        </wa-card>
+      </div>
+    {% endif %}
+  </div>
+{% endblock %}
+

@@ -1,0 +1,43 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'events' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">Add-ons</div>
+        <div class="admin-subtitle">{{ event.name }}</div>
+      </div>
+      <div class="admin-actions-row">
+        <wa-button href="/admin/events/{{ event.id }}" variant="neutral">Back</wa-button>
+        <wa-button href="/admin/events/{{ event.id }}/addons/new" variant="primary">New Add-on</wa-button>
+      </div>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Price (cents)</th>
+            <th>Stock Limit</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in addons %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td class="mono">{{ row.price_cents ?? '' }}</td>
+              <td class="mono">{{ row.stock_limit ?? '' }}</td>
+              <td><wa-button href="/admin/events/{{ event.id }}/addons/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="4">No add-ons yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </wa-card>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'events' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">Events</div>
+        <div class="admin-subtitle">Create and manage event tickets.</div>
+      </div>
+      <wa-button href="/admin/events/new" variant="primary">New Event</wa-button>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Slug</th>
+            <th>Status</th>
+            <th>Start</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in events %}
+            <tr>
+              <td>{{ row.name }}</td>
+              <td class="mono">{{ row.slug }}</td>
+              <td><wa-tag size="small">{{ row.status }}</wa-tag></td>
+              <td class="mono">{{ row.start_time ?? '' }}</td>
+              <td><wa-button href="/admin/events/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No events yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </wa-card>
+{% endblock %}

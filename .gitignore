@@ -1,0 +1,13 @@
+node_modules
+.npmrc
+.env
+.env.*
+!.env.example
+/public_html/assets/vendor/**/*
+!/public_html/assets/vendor/.gitkeep
+public_html/config/local.php
+public_html/assets/img/products/**/*
+!/public_html/assets/img/products/.gitkeep
+/docs
+vendor
+AGENTS.md

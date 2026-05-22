@@ -1,0 +1,57 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'admins' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">Admins</div>
+        <div class="admin-subtitle">Manage admin accounts (username, password, 2FA reset).</div>
+      </div>
+      <wa-button href="/admin/admins/new" variant="primary">
+        <wa-icon slot="start" name="user-plus" variant="solid"></wa-icon>
+        New Admin
+      </wa-button>
+    </div>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>2FA</th>
+            <th>Last Login</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in admins %}
+            <tr>
+              <td class="mono">{{ row.id }}</td>
+              <td class="mono">{{ row.username }}</td>
+              <td class="mono">{{ row.email }}</td>
+              <td>
+                {% if row.app_2fa_enabled and row.totp_secret %}
+                  <wa-tag size="small" variant="success">App</wa-tag>
+                {% else %}
+                  <wa-tag size="small" variant="neutral">Email</wa-tag>
+                {% endif %}
+              </td>
+              <td class="mono">{{ row.last_login_at ? (row.last_login_at|format_dt_utc('Y-m-d H:i')) : '' }}</td>
+              <td style="text-align: right">
+                <wa-button href="/admin/admins/{{ row.id }}" variant="neutral" size="s">Edit</wa-button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No admins found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </wa-card>
+{% endblock %}

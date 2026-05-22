@@ -1,0 +1,4 @@
+@fortawesome:registry=https://npm.fontawesome.com/
+@awesome.me:registry=https://npm.cloudsmith.io/fortawesome/webawesome-pro
+//npm.cloudsmith.io/fortawesome/webawesome-pro/:_authToken=your-token-here
+//npm.fontawesome.com/:_authToken=your-token-here

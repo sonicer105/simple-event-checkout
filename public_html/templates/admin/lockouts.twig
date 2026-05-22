@@ -1,0 +1,45 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'lockouts' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-title">Lockouts</div>
+    <p>IP-based admin login lockouts. Clearing removes the ban and attempt counter.</p>
+
+    <div class="admin-table-wrap">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>IP</th>
+            <th>Attempts</th>
+            <th>Banned Until</th>
+            <th>Last Attempt</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in lockouts %}
+            <tr>
+              <td class="mono">{{ row.ip }}</td>
+              <td class="mono">{{ row.attempts }}</td>
+              <td class="mono">{{ row.banned_until ?? '' }}</td>
+              <td class="mono">{{ row.last_attempt_at }}</td>
+              <td>
+                <form method="post" action="/admin/lockouts/clear">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="ip" value="{{ row.ip }}" />
+                  <wa-button type="submit" variant="neutral" size="s">Clear</wa-button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="5">No lockouts.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </wa-card>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'events' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">{{ is_new ? 'New Event' : 'Edit Event' }}</div>
+        <div class="admin-subtitle">{{ is_new ? 'Create a new event ticket.' : 'Update event details and publishing status.' }}</div>
+      </div>
+      <wa-button href="/admin/events" variant="neutral">Back</wa-button>
+    </div>
+
+    {% if error %}
+      <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+    {% endif %}
+
+    <form method="post" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <wa-input name="name" label="Name" value="{{ event.name ?? '' }}" required></wa-input>
+      <wa-input name="slug" label="Slug" help-text="Used in the URL. Lowercase letters, numbers, and dashes recommended." value="{{ event.slug ?? '' }}" required></wa-input>
+      <wa-textarea name="short_description" label="Short Description" value="{{ event.short_description ?? '' }}" required></wa-textarea>
+
+      <wa-textarea name="long_description" label="Long Description (Markdown)" value="{{ event.long_description ?? '' }}"></wa-textarea>
+
+      <wa-select name="image_path" label="Image">
+        <wa-option value="" {% if (event.image_path ?? '') == '' %}selected{% endif %}>(none)</wa-option>
+        {% for p in image_options %}
+          {% set fname = p|split('/')|last %}
+          <wa-option value="{{ p }}" {% if (event.image_path ?? '') == p %}selected{% endif %}>{{ fname }}</wa-option>
+        {% endfor %}
+      </wa-select>
+
+      <div class="admin-form-row">
+        <wa-input name="location" label="Location" value="{{ event.location ?? '' }}"></wa-input>
+        <wa-select name="status" label="Status" required>
+          {% for s in statuses %}
+            <wa-option value="{{ s }}" {% if (event.status ?? 'draft') == s %}selected{% endif %}>{{ s }}</wa-option>
+          {% endfor %}
+        </wa-select>
+      </div>
+
+      <div class="admin-form-row">
+        <wa-input type="datetime-local" name="start_time" label="Start Time" value="{{ event.start_time_local ?? '' }}"></wa-input>
+        <wa-input type="datetime-local" name="end_time" label="End Time" value="{{ event.end_time_local ?? '' }}"></wa-input>
+      </div>
+
+      <div class="admin-form-row">
+        <wa-input type="number" name="price_cents" label="Price (cents)" value="{{ event.price_cents ?? '' }}"></wa-input>
+        <wa-input type="number" name="stock_limit" label="Stock Limit" value="{{ event.stock_limit ?? '' }}"></wa-input>
+      </div>
+
+      <wa-divider></wa-divider>
+
+      <wa-button type="submit" variant="primary">{{ is_new ? 'Create Event' : 'Save Changes' }}</wa-button>
+    </form>
+
+    {% if not is_new %}
+      <wa-divider></wa-divider>
+      <div class="admin-section-title">Event Options</div>
+      <div class="admin-actions-row">
+        <wa-button href="/admin/events/{{ event.id }}/variations" variant="neutral">Variations</wa-button>
+        <wa-button href="/admin/events/{{ event.id }}/modifiers" variant="neutral">Modifiers</wa-button>
+        <wa-button href="/admin/events/{{ event.id }}/addons" variant="neutral">Add-ons</wa-button>
+      </div>
+    {% endif %}
+  </wa-card>
+{% endblock %}

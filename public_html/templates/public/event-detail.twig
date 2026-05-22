@@ -1,0 +1,101 @@
+{% extends "base.twig" %}
+{% set show_public_nav = true %}
+
+{% block content %}
+  <div class="wa-stack wa-gap-2xl">
+    <wa-breadcrumb>
+      <wa-breadcrumb-item href="/">Events</wa-breadcrumb-item>
+      <wa-breadcrumb-item>{{ event.name }}</wa-breadcrumb-item>
+    </wa-breadcrumb>
+
+    <div class="wa-grid wa-gap-2xl" style="--min-column-size: 35ch">
+      <div class="wa-stack wa-gap-xs">
+        <img
+          class="wa-border-radius-s"
+          src="{{ event.image_path ?: '/assets/img/placeholder.png' }}"
+          alt="{{ event.name }}"
+          loading="lazy"
+        />
+        <h3 class="wa-heading-m">Description</h3>
+        <wa-divider></wa-divider>
+        {% if event.long_description %}
+          <div class="wa-prose">{{ event.long_description|format_md }}</div>
+        {% else %}
+          <div class="wa-prose">{{ event.short_description }}</div>
+        {% endif %}
+      </div>
+
+      <div class="wa-stack">
+        <div class="wa-split">
+          <h2 class="wa-heading-xl">{{ event.name }}</h2>
+          {% if event.price_cents is not null and event.price_cents != 0 and variations|length == 0 %}
+            <span class="wa-body-xl">${{ (event.price_cents / 100)|number_format(2, '.', ',') }}</span>
+          {% endif %}
+        </div>
+
+        <div class="wa-split">
+          <div class="wa-cluster wa-gap-s">
+            <span class="wa-caption-s">{{ event.start_time|format_dt('F j, Y \\a\\t g:i A') }}</span>
+            {% if event.location %}
+              <span class="wa-caption-s" aria-hidden="true">•</span>
+              <span class="wa-caption-s">{{ event.location }}</span>
+            {% endif %}
+          </div>
+        </div>
+
+        <form method="post" action="/cart/add" class="wa-stack wa-gap-l">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <input type="hidden" name="event_id" value="{{ event.id }}" />
+
+          {% if variations|length > 0 %}
+            <wa-radio-group label="Options" name="variation_id" orientation="horizontal">
+              {% for v in variations %}
+                <wa-radio appearance="button" value="{{ v.id }}">
+                  {{ v.name }} ({{ (v.price_cents / 100)|number_format(2, '.', ',') }})
+                </wa-radio>
+              {% endfor %}
+            </wa-radio-group>
+          {% endif %}
+
+          {% for m in modifiers %}
+            {% if m.modifier_type == 'checkbox' %}
+              <wa-checkbox name="modifiers[{{ m.id }}]" value="1">{{ m.name }}</wa-checkbox>
+            {% else %}
+              <wa-input name="modifiers[{{ m.id }}]" label="{{ m.name }}" {% if m.is_required %}required{% endif %}></wa-input>
+            {% endif %}
+          {% endfor %}
+
+          {% if addons|length > 0 %}
+            <wa-divider></wa-divider>
+            <h3 class="wa-heading-m">Add-ons</h3>
+            <div class="wa-stack wa-gap-m">
+              {% for a in addons %}
+                <wa-card class="wa-span-grid" style="padding: 14px;">
+                  <div class="wa-split">
+                    <div class="wa-stack wa-gap-2xs">
+                      <div class="wa-split">
+                        <strong>{{ a.name }}</strong>
+                        {% if a.price_cents is not null and a.price_cents != 0 %}
+                          <span class="wa-caption-s">${{ (a.price_cents / 100)|number_format(2, '.', ',') }}</span>
+                        {% endif %}
+                      </div>
+                      <span class="wa-caption-s">{{ a.short_description }}</span>
+                    </div>
+                    <div style="width: 140px;">
+                      <wa-input type="number" name="addons[{{ a.id }}]" label="Qty" value="0" min="0"></wa-input>
+                    </div>
+                  </div>
+                </wa-card>
+              {% endfor %}
+            </div>
+          {% endif %}
+
+          <wa-button type="submit" variant="brand">
+            <wa-icon slot="start" name="bag-shopping" variant="solid"></wa-icon>
+            Add to Cart
+          </wa-button>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock %}
