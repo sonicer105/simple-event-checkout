@@ -10,6 +10,7 @@ use App\Database;
 use App\Mail\EmailRenderer;
 use App\Mail\Mailer;
 use App\Payments\SquareCheckoutClient;
+use App\Stock\StockService;
 use App\Repositories\AdminRepository;
 use App\Repositories\AdminSessionRepository;
 use App\Repositories\AuditLogRepository;
@@ -91,7 +92,7 @@ $app->add(function (Request $request, $handler) use ($rateLimits, $config) {
 
     // Public checkout start is the most abusable (email + payment init).
     if ($method === 'POST' && $path === '/checkout/start') {
-        $rule = ['key' => 'checkout_start', 'limit' => 10, 'window' => 300];
+        $rule = ['key' => 'checkout_start', 'limit' => 30, 'window' => 300];
     }
 
     // Prevent spam refresh / probing.
@@ -106,12 +107,38 @@ $app->add(function (Request $request, $handler) use ($rateLimits, $config) {
 
     if ($rule) {
         $ip = \App\Http\RequestUtil::clientIp($config, $request);
-        $hits = $rateLimits->hit($ip, $rule['key'], (int) $rule['window']);
-        if ($hits > (int) $rule['limit']) {
+        $window = (int) $rule['window'];
+        $limit = (int) $rule['limit'];
+
+        $hits = $rateLimits->hit($ip, $rule['key'], $window);
+        if ($hits > $limit) {
+            // Compute remaining seconds in the current window for a helpful Retry-After.
+            $now = time();
+            $windowStart = (int) (intdiv($now, $window) * $window);
+            $retryAfter = max(1, ($windowStart + $window) - $now);
+
+            error_log(sprintf(
+                'Rate limit hit: ip=%s key=%s hits=%d limit=%d window=%ds path=%s',
+                $ip,
+                (string) $rule['key'],
+                $hits,
+                $limit,
+                $window,
+                (string) $path,
+            ));
+
             $response = new \Slim\Psr7\Response(429);
-            $response->getBody()->write('429 Too Many Requests');
-            $response = $response->withHeader('Retry-After', (string) $rule['window']);
-            return $response;
+            $response->getBody()->write(sprintf(
+                '429 Too Many Requests (%s) on %s. Retry after %ds.',
+                (string) $rule['key'],
+                (string) $path,
+                $retryAfter,
+            ));
+            return $response
+                ->withHeader('Retry-After', (string) $retryAfter)
+                ->withHeader('X-RateLimit-Key', (string) $rule['key'])
+                ->withHeader('X-RateLimit-Limit', (string) $limit)
+                ->withHeader('X-RateLimit-Hits', (string) $hits);
         }
     }
 
@@ -275,6 +302,50 @@ $twig->getEnvironment()->addFilter(new TwigFilter('format_money', function (mixe
     return '$' . number_format($amount, 2, '.', ',');
 }));
 
+// Modifier selection requirement helper for select/multiselect inputs.
+$twig->getEnvironment()->addFilter(new TwigFilter('modifier_pick_text', function (mixed $modifier): string {
+    if (!is_array($modifier)) {
+        return '';
+    }
+
+    $type = strtolower((string) ($modifier['modifier_type'] ?? ''));
+    $isRequiredRaw = $modifier['is_required'] ?? false;
+    $isRequired = ($isRequiredRaw === 1 || $isRequiredRaw === '1' || $isRequiredRaw === true);
+
+    if ($type === 'select') {
+        return $isRequired ? 'Pick 1' : 'Pick up to 1';
+    }
+
+    if ($type !== 'multiselect') {
+        return '';
+    }
+
+    $min = $modifier['min_selected'] ?? null;
+    $max = $modifier['max_selected'] ?? null;
+
+    $min = (is_numeric($min) && (int) $min > 0) ? (int) $min : null;
+    $max = (is_numeric($max) && (int) $max > 0) ? (int) $max : null;
+
+    if ($min === null && $isRequired) {
+        $min = 1;
+    }
+
+    if ($min !== null && $max !== null && $min === $max) {
+        return 'Pick ' . $min;
+    }
+    if ($min !== null && $max !== null) {
+        return 'Pick ' . $min . '-' . $max;
+    }
+    if ($min !== null) {
+        return 'Pick at least ' . $min;
+    }
+    if ($max !== null) {
+        return 'Pick up to ' . $max;
+    }
+
+    return '';
+}));
+
 // Server-side Markdown rendering for event descriptions, etc.
 // Keep it conservative: strip raw HTML and disallow unsafe links.
 $md = new CommonMarkConverter([
@@ -307,6 +378,7 @@ $cartRepo = new CartRepository($db);
 $cartItemRepo = new CartItemRepository($db);
 $cartItemModifierRepo = new CartItemModifierRepository($db);
 $cartItemAddonRepo = new CartItemAddonRepository($db);
+$stock = new StockService($db, $eventRepo, $variationRepo, $addonRepo);
 $cartService = new CartService(
     $cartRepo,
     $cartItemRepo,
@@ -316,6 +388,7 @@ $cartService = new CartService(
     $variationRepo,
     $modifierRepo,
     $addonRepo,
+    $stock,
 );
 $purchaseRepo = new PurchaseRepository($db);
 $purchaseTicketRepo = new PurchaseTicketRepository($db);
@@ -351,7 +424,8 @@ PublicRoutes::register(
     $square,
     $mailer,
     $emailRenderer,
-    $cartService
+    $cartService,
+    $stock
 );
 
 AdminRoutes::register(
@@ -371,7 +445,8 @@ AdminRoutes::register(
     $purchaseTicketModifierRepo,
     $purchaseTicketAddonRepo,
     $mailer,
-    $emailRenderer
+    $emailRenderer,
+    $stock
 );
 
 $app->get('/health', function (Request $request, Response $response) use ($db) {

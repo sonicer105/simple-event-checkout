@@ -15,25 +15,25 @@
       </div>
     </div>
 
-    <div class="admin-table-wrap">
-      <table class="admin-table">
+    <div class="admin-table-wrap admin-table-wrap--responsive">
+      <table class="admin-table admin-table--responsive">
         <thead>
           <tr>
             <th>Name</th>
             <th>Type</th>
             <th>Required</th>
             <th>Sort</th>
-            <th></th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for row in modifiers %}
             <tr>
-              <td>{{ row.name }}</td>
-              <td class="mono">{{ row.modifier_type }}</td>
-              <td class="mono">{{ row.is_required ? 'yes' : 'no' }}</td>
-              <td class="mono">{{ row.sort_order }}</td>
-              <td><wa-button href="/admin/events/{{ event.id }}/modifiers/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
+              <td data-label="Name">{{ row.name }}</td>
+              <td data-label="Type" class="mono">{{ row.modifier_type }}</td>
+              <td data-label="Required" class="mono">{{ row.is_required ? 'yes' : 'no' }}</td>
+              <td data-label="Sort" class="mono">{{ row.sort_order }}</td>
+              <td data-label="Actions"><wa-button href="/admin/events/{{ event.id }}/modifiers/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
             </tr>
           {% else %}
             <tr><td colspan="5">No modifiers yet.</td></tr>

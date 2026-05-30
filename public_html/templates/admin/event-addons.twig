@@ -15,23 +15,23 @@
       </div>
     </div>
 
-    <div class="admin-table-wrap">
-      <table class="admin-table">
+    <div class="admin-table-wrap admin-table-wrap--responsive">
+      <table class="admin-table admin-table--responsive">
         <thead>
           <tr>
             <th>Name</th>
-            <th>Price (cents)</th>
+            <th>Price</th>
             <th>Stock Limit</th>
-            <th></th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {% for row in addons %}
             <tr>
-              <td>{{ row.name }}</td>
-              <td class="mono">{{ row.price_cents ?? '' }}</td>
-              <td class="mono">{{ row.stock_limit ?? '' }}</td>
-              <td><wa-button href="/admin/events/{{ event.id }}/addons/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
+              <td data-label="Name">{{ row.name }}</td>
+              <td data-label="Price" class="mono">{{ (row.price_cents ?? 0)|format_money }}</td>
+              <td data-label="Stock Limit" class="mono">{{ row.stock_limit ?? '' }}</td>
+              <td data-label="Actions"><wa-button href="/admin/events/{{ event.id }}/addons/{{ row.id }}" variant="neutral" size="s">Edit</wa-button></td>
             </tr>
           {% else %}
             <tr><td colspan="4">No add-ons yet.</td></tr>

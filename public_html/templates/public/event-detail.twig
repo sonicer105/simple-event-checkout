@@ -43,15 +43,17 @@
           </div>
         </div>
 
-        <form method="post" action="/cart/add" class="wa-stack wa-gap-l">
+        <form method="post" action="/cart/add" class="wa-stack wa-gap-l" novalidate>
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <input type="hidden" name="event_id" value="{{ event.id }}" />
 
           {% if variations|length > 0 %}
             <wa-radio-group label="Options" name="variation_id" orientation="horizontal">
               {% for v in variations %}
-                <wa-radio appearance="button" value="{{ v.id }}">
-                  {{ v.name }} ({{ (v.price_cents / 100)|number_format(2, '.', ',') }})
+                {% set avail = ticket_availability[v.id ~ ''] ?? null %}
+                {% set sold_out = (avail is not null and avail <= 0) %}
+                <wa-radio appearance="button" value="{{ v.id }}" {% if sold_out %}disabled{% endif %}>
+                  {{ v.name }} ({{ (v.price_cents / 100)|number_format(2, '.', ',') }}){% if sold_out %} — Sold out{% endif %}
                 </wa-radio>
               {% endfor %}
             </wa-radio-group>
@@ -59,7 +61,22 @@
 
           {% for m in modifiers %}
             {% if m.modifier_type == 'checkbox' %}
-              <wa-checkbox name="modifiers[{{ m.id }}]" value="1">{{ m.name }}</wa-checkbox>
+              <wa-checkbox name="modifiers[{{ m.id }}]" value="1" {% if m.is_required %}required{% endif %}>{{ m.name }}</wa-checkbox>
+            {% elseif m.modifier_type == 'select' %}
+              {% set pick_text = m|modifier_pick_text %}
+              <wa-select name="modifiers[{{ m.id }}]" label="{{ m.name }}" placeholder="Select…" data-modifier-name="{{ m.name }}" data-required="{{ m.is_required ? 1 : 0 }}" {% if pick_text %}hint="{{ pick_text }}"{% endif %} {% if m.is_required %}required{% endif %}>
+                {% for opt in m.options ?? [] %}
+                  <wa-option value="{{ opt }}">{{ opt }}</wa-option>
+                {% endfor %}
+              </wa-select>
+            {% elseif m.modifier_type == 'multiselect' %}
+              {% set pick_text = m|modifier_pick_text %}
+
+              <wa-select name="modifiers[{{ m.id }}][]" label="{{ m.name }}" placeholder="Select…" multiple data-modifier-name="{{ m.name }}" data-required="{{ m.is_required ? 1 : 0 }}" data-min="{{ m.min_selected ?? "" }}" data-max="{{ m.max_selected ?? "" }}" {% if m.is_required %}required{% endif %}{% if pick_text %} hint="{{ pick_text }}"{% endif %}>
+                {% for opt in m.options ?? [] %}
+                  <wa-option value="{{ opt }}">{{ opt }}</wa-option>
+                {% endfor %}
+              </wa-select>
             {% else %}
               <wa-input name="modifiers[{{ m.id }}]" label="{{ m.name }}" {% if m.is_required %}required{% endif %}></wa-input>
             {% endif %}
@@ -70,6 +87,8 @@
             <h3 class="wa-heading-m">Add-ons</h3>
             <div class="wa-stack wa-gap-m">
               {% for a in addons %}
+                {% set a_avail = addon_availability[a.id ~ ''] ?? null %}
+                {% set a_sold_out = (a_avail is not null and a_avail <= 0) %}
                 <wa-card class="wa-span-grid" style="padding: 14px;">
                   <div class="wa-split">
                     <div class="wa-stack wa-gap-2xs">
@@ -79,10 +98,15 @@
                           <span class="wa-caption-s">${{ (a.price_cents / 100)|number_format(2, '.', ',') }}</span>
                         {% endif %}
                       </div>
-                      <span class="wa-caption-s">{{ a.short_description }}</span>
+                      <span class="wa-caption-s">
+                        {{ a.short_description }}
+                        {% if a_sold_out %}
+                          <strong>Sold out</strong>
+                        {% endif %}
+                      </span>
                     </div>
                     <div style="width: 140px;">
-                      <wa-input type="number" name="addons[{{ a.id }}]" label="Qty" value="0" min="0"></wa-input>
+                      <wa-input type="number" name="addons[{{ a.id }}]" label="Qty" value="0" min="0" {% if a_sold_out %}disabled{% endif %}></wa-input>
                     </div>
                   </div>
                 </wa-card>
@@ -90,10 +114,115 @@
             </div>
           {% endif %}
 
+          <wa-callout id="add-to-cart-errors" variant="warning" style="display: none;"></wa-callout>
+
           <wa-button type="submit" variant="brand">
             <wa-icon slot="start" name="bag-shopping" variant="solid"></wa-icon>
             Add to Cart
           </wa-button>
+
+
+        <script type="module">
+          const form = document.querySelector('form[action="/cart/add"]');
+          const callout = document.getElementById('add-to-cart-errors');
+          if (!form || !callout) {
+            // Nothing to wire up.
+          } else {
+            function clearErrors() {
+              callout.style.display = 'none';
+              callout.textContent = '';
+            }
+
+            function parseIntOrNull(v) {
+              const n = Number.parseInt(String(v ?? '').trim(), 10);
+              return Number.isFinite(n) && n > 0 ? n : null;
+            }
+
+            function pickText(minSel, maxSel) {
+              if (minSel != null && maxSel != null && minSel === maxSel) return `Pick ${minSel}.`;
+              if (minSel != null && maxSel != null) return `Pick ${minSel}-${maxSel}.`;
+              if (minSel != null) return `Pick at least ${minSel}.`;
+              if (maxSel != null) return `Pick up to ${maxSel}.`;
+              return '';
+            }
+
+            function validateForm() {
+              const errors = [];
+
+              // Validate select + multiselect modifiers.
+              const selects = Array.from(form.querySelectorAll('wa-select[name^="modifiers["]'));
+              for (const el of selects) {
+                const name = el.getAttribute('data-modifier-name') || el.getAttribute('label') || 'Modifier';
+                const required = (el.getAttribute('data-required') === '1');
+                const isMulti = el.hasAttribute('multiple');
+
+                if (!isMulti) {
+                  const v = (el.value ?? '').toString();
+                  if (required && v.trim() === '') {
+                    errors.push(`${name}: Pick 1.`);
+                  }
+                  continue;
+                }
+
+                const raw = el.value;
+                const values = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+                const count = values.filter(v => String(v).trim() !== '').length;
+
+                let minSel = parseIntOrNull(el.getAttribute('data-min'));
+                const maxSel = parseIntOrNull(el.getAttribute('data-max'));
+                if (minSel == null && required) minSel = 1;
+
+                if (minSel != null && count < minSel) {
+                  errors.push(`${name}: ${pickText(minSel, maxSel) || `Pick at least ${minSel}.`}`);
+                } else if (maxSel != null && count > maxSel) {
+                  errors.push(`${name}: ${pickText(minSel, maxSel) || `Pick up to ${maxSel}.`}`);
+                }
+              }
+
+
+
+              // Validate required text inputs/areas.
+              const textInputs = Array.from(form.querySelectorAll('wa-input[name^="modifiers["], wa-textarea[name^="modifiers["]'));
+              for (const el of textInputs) {
+                if (!el.hasAttribute('required')) continue;
+                const label = el.getAttribute('label') || el.getAttribute('name') || 'Field';
+                const v = (el.value ?? '').toString();
+                if (v.trim() === '') {
+                  errors.push(`${label}: Required.`);
+                }
+              }
+
+              // Validate required checkboxes.
+              const checkboxes = Array.from(form.querySelectorAll('wa-checkbox[name^="modifiers["]'));
+              for (const el of checkboxes) {
+                if (!el.hasAttribute('required')) continue;
+                const label = (el.textContent || '').trim() || el.getAttribute('name') || 'Checkbox';
+                const checked = (el.checked === true) || el.hasAttribute('checked');
+                if (!checked) {
+                  errors.push(`${label}: Required.`);
+                }
+              }
+              return errors;
+            }
+
+            form.addEventListener('submit', (e) => {
+              clearErrors();
+              const errors = validateForm();
+              if (errors.length > 0) {
+                e.preventDefault();
+                callout.style.display = '';
+                callout.innerHTML = `<strong>Please fix the following:</strong><br>` + errors.map(x => `• ${x}`).join('<br>');
+                callout.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            });
+
+            // Any interaction clears the warnings.
+            form.addEventListener('wa-change', clearErrors);
+            form.addEventListener('input', clearErrors);
+            form.addEventListener('change', clearErrors);
+          }
+        </script>
+
         </form>
       </div>
     </div>

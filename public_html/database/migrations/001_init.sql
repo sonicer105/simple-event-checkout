@@ -107,6 +107,9 @@ CREATE TABLE IF NOT EXISTS event_modifiers (
   modifier_type VARCHAR(30) NOT NULL,
   is_required TINYINT(1) NOT NULL DEFAULT 0,
   sort_order INT UNSIGNED NOT NULL DEFAULT 0,
+  options_json TEXT NULL,
+  min_selected INT UNSIGNED NULL,
+  max_selected INT UNSIGNED NULL,
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
   INDEX (event_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -198,6 +201,8 @@ CREATE TABLE IF NOT EXISTS purchases (
   payment_status VARCHAR(30) NOT NULL DEFAULT 'pending',
   payment_provider VARCHAR(30) NOT NULL DEFAULT 'square',
   provider_reference VARCHAR(255) NULL,
+  receipt_email_sent_at TIMESTAMP NULL,
+  receipt_email_error VARCHAR(255) NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX (email),
   INDEX (created_at)
@@ -258,4 +263,16 @@ CREATE TABLE IF NOT EXISTS stock_counters (
   UNIQUE KEY stock_unique (event_id, variation_id),
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
   FOREIGN KEY (variation_id) REFERENCES event_variations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Simple IP-based rate limiting counters.
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  ip VARCHAR(45) NOT NULL,
+  route_key VARCHAR(64) NOT NULL,
+  window_start INT UNSIGNED NOT NULL,
+  hits INT UNSIGNED NOT NULL DEFAULT 1,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY rate_limit_unique (ip, route_key, window_start),
+  INDEX (updated_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

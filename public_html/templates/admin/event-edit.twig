@@ -58,6 +58,70 @@
 
     {% if not is_new %}
       <wa-divider></wa-divider>
+
+      <wa-details>
+        <div slot="summary" class="wa-body-m"><strong>Stock Overview</strong></div>
+        <div class="wa-caption-s" style="margin: 6px 0 10px; color: var(--wa-color-neutral-700);">
+          Sold = paid, non-refunded. Held = active carts (last activity within ~1 hour). Stock limit of 0 means unlimited.
+        </div>
+
+        <div class="wa-caption-s" style="margin: 0 0 6px; color: var(--wa-color-neutral-700);"><strong>Tickets</strong></div>
+        <div class="admin-table-wrap admin-table-wrap--responsive" style="margin-bottom: 10px;">
+          <table class="admin-table admin-table--responsive">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Limit</th>
+                <th>Sold</th>
+                <th>Held</th>
+                <th>Available</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in stock_overview ?? [] %}
+                <tr>
+                  <td data-label="Ticket">{{ s.label }}</td>
+                  <td data-label="Limit" class="mono">{{ s.stock_limit is null ? 'unlimited' : s.stock_limit }}</td>
+                  <td data-label="Sold" class="mono">{{ s.sold }}</td>
+                  <td data-label="Held" class="mono">{{ s.held }}</td>
+                  <td data-label="Available" class="mono">{{ s.available is null ? 'unlimited' : s.available }}</td>
+                </tr>
+              {% else %}
+                <tr><td colspan="5">No stock data.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if addon_stock_overview is defined and addon_stock_overview|length > 0 %}
+          <div class="wa-caption-s" style="margin: 2px 0 6px; color: var(--wa-color-neutral-700);"><strong>Add-ons</strong></div>
+          <div class="admin-table-wrap admin-table-wrap--responsive" style="margin-bottom: 10px;">
+            <table class="admin-table admin-table--responsive">
+              <thead>
+                <tr>
+                  <th>Add-on</th>
+                  <th>Limit</th>
+                  <th>Sold</th>
+                  <th>Held</th>
+                  <th>Available</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for a in addon_stock_overview %}
+                  <tr>
+                    <td data-label="Add-on">{{ a.label }}</td>
+                    <td data-label="Limit" class="mono">{{ a.stock_limit is null ? 'unlimited' : a.stock_limit }}</td>
+                    <td data-label="Sold" class="mono">{{ a.sold }}</td>
+                    <td data-label="Held" class="mono">{{ a.held }}</td>
+                    <td data-label="Available" class="mono">{{ a.available is null ? 'unlimited' : a.available }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      </wa-details>
+
       <div class="admin-section-title">Event Options</div>
       <div class="admin-actions-row">
         <wa-button href="/admin/events/{{ event.id }}/variations" variant="neutral">Variations</wa-button>

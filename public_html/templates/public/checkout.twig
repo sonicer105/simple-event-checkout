@@ -21,10 +21,14 @@
             <wa-callout variant="danger" style="margin-bottom: 12px;">{{ error }}</wa-callout>
           {% endif %}
 
+          <wa-callout variant="warning" style="margin-bottom: 12px;">
+            Please complete payment within 1 hour to guarantee your spot.
+          </wa-callout>
+
           <form method="post" action="/checkout/start" class="wa-stack wa-gap-m">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <wa-input name="email" type="email" label="Email" required value="{{ email }}"></wa-input>
-            <wa-button type="submit" variant="brand">
+            <wa-button id="checkout-start-submit" type="submit" variant="brand">
               <wa-icon slot="start" name="arrow-right" variant="solid"></wa-icon>
               Pay With Square
             </wa-button>
@@ -32,6 +36,19 @@
               Payment is processed on Square’s hosted checkout page. You’ll be redirected back here after payment.
             </p>
           </form>
+
+          <script type="module">
+            const form = document.querySelector('form[action="/checkout/start"]');
+            const btn = document.getElementById('checkout-start-submit');
+            if (form && btn) {
+              form.addEventListener('submit', () => {
+                // Prevent accidental double submits (e.g. double click / slow network).
+                btn.disabled = true;
+                btn.loading = true;
+              });
+            }
+          </script>
+
         </wa-card>
 
         <wa-card>
@@ -68,7 +85,7 @@
                         {% if m.modifier_type == 'checkbox' %}
                           {{ m.modifier_name }}
                         {% else %}
-                          {{ m.modifier_name }}: {{ m.value }}
+                          {{ m.modifier_name }}: {{ m.value_display ?? m.value }}
                         {% endif %}
                       </span>
                     {% endfor %}
@@ -93,4 +110,3 @@
     {% endif %}
   </div>
 {% endblock %}
-

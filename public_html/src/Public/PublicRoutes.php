@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Public;
 
+use App\Http\RequestUtil;
+
 use App\Cart\CartService;
 use App\Payments\SquareCheckoutClient;
 use App\Mail\EmailRenderer;
@@ -20,6 +22,7 @@ use App\Repositories\PurchaseRepository;
 use App\Repositories\PurchaseTicketAddonRepository;
 use App\Repositories\PurchaseTicketModifierRepository;
 use App\Repositories\PurchaseTicketRepository;
+use App\Stock\StockService;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use Psr\Http\Message\ResponseInterface as Response;
@@ -49,6 +52,7 @@ final class PublicRoutes
         Mailer $mailer,
         EmailRenderer $emailRenderer,
         CartService $cartService,
+        StockService $stock,
     ): void {
         $loadCart = function () use ($carts, $cartItems, $cartItemAddons, $cartItemModifiers): array {
             $cart = $carts->findBySessionId(hash('sha256', session_id()));
@@ -78,6 +82,19 @@ final class PublicRoutes
                     $itemId = (int) $row['id'];
                     $rowAddons = $addonsByItemId[$itemId] ?? [];
                     $rowModifiers = $modifiersByItemId[$itemId] ?? [];
+                    foreach ($rowModifiers as &$mr) {
+                        $type = (string) ($mr['modifier_type'] ?? '');
+                        $raw = $mr['value'] ?? null;
+                        $mr['value_display'] = $raw;
+                        if ($type === 'multiselect' && is_string($raw) && trim($raw) !== '') {
+                            $decoded = json_decode($raw, true);
+                            if (is_array($decoded)) {
+                                $vals = array_values(array_filter(array_map('strval', $decoded), static fn (string $v): bool => trim($v) !== ''));
+                                $mr['value_display'] = implode(', ', $vals);
+                            }
+                        }
+                    }
+                    unset($mr);
                     $addonTotal = 0;
                     foreach ($rowAddons as $a) {
                         $addonTotal += ((int) ($a['quantity'] ?? 0)) * ((int) ($a['unit_price_cents'] ?? 0));
@@ -98,13 +115,15 @@ final class PublicRoutes
 
         $app->get('/', function (Request $request, Response $response) use ($config, $events) {
             $list = $events->listPublicIndex();
+            $clientIp = RequestUtil::clientIp($config, $request);
             return Twig::fromRequest($request)->render($response, 'public/events.twig', [
                 'app' => $config,
                 'events' => $list,
+                'client_ip' => $clientIp,
             ]);
         });
 
-        $app->get('/events/{slug}', function (Request $request, Response $response, array $args) use ($config, $events, $variations, $modifiers, $addons) {
+        $app->get('/events/{slug}', function (Request $request, Response $response, array $args) use ($config, $events, $variations, $modifiers, $addons, $carts, $stock) {
             $slug = (string) ($args['slug'] ?? '');
             $event = $events->findPublicBySlug($slug);
             if (!$event) {
@@ -112,21 +131,52 @@ final class PublicRoutes
             }
 
             $eventId = (int) $event['id'];
+            $cart = $carts->findBySessionId(hash('sha256', session_id()));
+            $cartId = $cart ? (int) ($cart['id'] ?? 0) : 0;
+
+            $modifierList = $modifiers->listByEventId($eventId);
+            foreach ($modifierList as &$m) {
+                $m['options'] = [];
+                if (is_string($m['options_json'] ?? null) && trim((string) $m['options_json']) !== '') {
+                    $decoded = json_decode((string) $m['options_json'], true);
+                    if (is_array($decoded)) {
+                        $m['options'] = array_values(array_filter(array_map('strval', $decoded), static fn (string $v): bool => trim($v) !== ''));
+                    }
+                }
+                if (array_key_exists('min_selected', $m) && $m['min_selected'] !== null && (string) $m['min_selected'] !== '') {
+                    $m['min_selected'] = max(0, (int) $m['min_selected']);
+                } else {
+                    $m['min_selected'] = null;
+                }
+
+                if (array_key_exists('max_selected', $m) && $m['max_selected'] !== null && (string) $m['max_selected'] !== '') {
+                    $m['max_selected'] = (int) $m['max_selected'];
+                } else {
+                    $m['max_selected'] = null;
+                }
+            }
+            unset($m);
+
             return Twig::fromRequest($request)->render($response, 'public/event-detail.twig', [
                 'app' => $config,
                 'event' => $event,
                 'variations' => $variations->listByEventId($eventId),
-                'modifiers' => $modifiers->listByEventId($eventId),
+                'modifiers' => $modifierList,
                 'addons' => $addons->listByEventId($eventId),
+                'ticket_availability' => $stock->getTicketAvailabilityForEvent($eventId, $cartId),
+                'addon_availability' => $stock->getAddonAvailabilityForEvent($eventId, $cartId),
             ]);
         });
 
         $app->get('/cart', function (Request $request, Response $response) use ($config, $loadCart) {
             [$cart, $items, $subtotalCents] = $loadCart();
+            $cartError = (string) ($_SESSION['cart_error'] ?? '');
+            unset($_SESSION['cart_error']);
             return Twig::fromRequest($request)->render($response, 'public/cart.twig', [
                 'app' => $config,
                 'items' => $items,
                 'subtotal_cents' => $subtotalCents,
+                'cart_error' => $cartError,
             ]);
         });
 
@@ -143,10 +193,20 @@ final class PublicRoutes
             ]);
         });
 
-        $app->post('/checkout/start', function (Request $request, Response $response) use ($config, $loadCart, $square, $purchases) {
-            [, $items, $subtotalCents] = $loadCart();
+        $app->post('/checkout/start', function (Request $request, Response $response) use ($config, $loadCart, $square, $purchases, $stock) {
+            [$cart, $items, $subtotalCents] = $loadCart();
             if (count($items) === 0) {
                 return $response->withHeader('Location', '/cart')->withStatus(302);
+            }
+
+            // Stock guard: don't start checkout if we can't fulfill the cart.
+            if ($cart && isset($cart['id'])) {
+                try {
+                    $stock->assertCheckoutItemsHaveStock((int) $cart['id'], $items);
+                } catch (\RuntimeException $e) {
+                    $_SESSION['cart_error'] = $e->getMessage();
+                    return $response->withHeader('Location', '/cart')->withStatus(302);
+                }
             }
 
             $data = (array) $request->getParsedBody();
@@ -590,7 +650,11 @@ final class PublicRoutes
             $addonQty = (array) ($data['addons'] ?? []);
 
             $sessionKey = hash('sha256', session_id());
-            $cartService->addEventToCart($sessionKey, $eventId, $variationId, $qty, $modifierValues, $addonQty);
+            try {
+                $cartService->addEventToCart($sessionKey, $eventId, $variationId, $qty, $modifierValues, $addonQty);
+            } catch (\RuntimeException $e) {
+                $_SESSION['cart_error'] = $e->getMessage();
+            }
 
             return $response->withHeader('Location', '/cart')->withStatus(302);
         });
@@ -601,7 +665,11 @@ final class PublicRoutes
             $qty = (int) ($data['quantity'] ?? 1);
 
             $sessionKey = hash('sha256', session_id());
-            $cartService->updateCartItemQuantity($sessionKey, $id, $qty);
+            try {
+                $cartService->updateCartItemQuantity($sessionKey, $id, $qty);
+            } catch (\RuntimeException $e) {
+                $_SESSION['cart_error'] = $e->getMessage();
+            }
 
             return $response->withHeader('Location', '/cart')->withStatus(302);
         });

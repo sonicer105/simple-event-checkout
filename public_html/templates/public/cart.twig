@@ -5,6 +5,10 @@
   <div class="wa-stack wa-gap-2xl">
     <h2 class="wa-heading-xl">Cart</h2>
 
+    {% if cart_error %}
+      <wa-callout variant="warning">{{ cart_error }}</wa-callout>
+    {% endif %}
+
     <div class="wa-grid wa-align-items-start wa-gap-2xl">
       <div class="wa-stack wa-gap-xl">
         {% for row in items %}
@@ -46,7 +50,7 @@
                         {% if m.modifier_type == 'checkbox' %}
                           {{ m.modifier_name }}
                         {% else %}
-                          {{ m.modifier_name }}: {{ m.value }}
+                          {{ m.modifier_name }}: {{ m.value_display ?? m.value }}
                         {% endif %}
                       </span>
                     {% endfor %}

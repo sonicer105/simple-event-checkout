@@ -91,7 +91,7 @@
                       {% if m.modifier_type == 'checkbox' %}
                         {{ m.modifier_name }}
                       {% else %}
-                        {{ m.modifier_name }}: {{ m.value }}
+                        {{ m.modifier_name }}: {{ m.value_display ?? m.value }}
                       {% endif %}
                     </span>
                   {% endfor %}

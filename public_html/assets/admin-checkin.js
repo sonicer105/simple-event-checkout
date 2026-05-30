@@ -104,7 +104,17 @@ function setTicket(ticket) {
       if (!name) return '';
       const type = String(m?.modifier_type || '').toLowerCase();
       const rawVal = m?.value;
-      const val = rawVal === null || rawVal === undefined ? '' : String(rawVal).trim();
+      let val = rawVal === null || rawVal === undefined ? '' : String(rawVal).trim();
+      if (val.startsWith('[')) {
+        try {
+          const parsed = JSON.parse(val);
+          if (Array.isArray(parsed)) {
+            val = parsed.map((v) => String(v).trim()).filter(Boolean).join(', ');
+          }
+        } catch {
+          // ignore
+        }
+      }
 
       // For boolean-style modifiers, the presence of the modifier is sufficient.
       // In some DBs this may come through as "1" — don't render that.
@@ -509,7 +519,17 @@ function renderLookupTickets(tickets) {
         .map((m) => {
           const name = String(m?.modifier_name || m?.name || '').trim();
           if (!name) return '';
-          const val = m?.value === null || m?.value === undefined ? '' : String(m.value).trim();
+          let val = m?.value === null || m?.value === undefined ? '' : String(m.value).trim();
+          if (val.startsWith('[')) {
+            try {
+              const parsed = JSON.parse(val);
+              if (Array.isArray(parsed)) {
+                val = parsed.map((v) => String(v).trim()).filter(Boolean).join(', ');
+              }
+            } catch {
+              // ignore
+            }
+          }
           if (!val || val === '1') return `<div class="checkin-mod"><span class="checkin-mod-name">${escapeHtml(name)}</span></div>`;
           return `<div class="checkin-mod"><span class="checkin-mod-name">${escapeHtml(name)}</span><span class="checkin-mod-val">${escapeHtml(val)}</span></div>`;
         })

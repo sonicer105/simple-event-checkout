@@ -32,10 +32,91 @@
         </wa-select>
       </div>
 
+      <div id="modifier-options-wrap">
+        <wa-textarea
+          name="options"
+          label="Options (one per line)"
+          help-text="Required for select/multiselect. Leave blank for text/checkbox."
+          value="{{ modifier.options_text ?? '' }}"
+        ></wa-textarea>
+      </div>
+
+      <div id="modifier-min-selected-wrap">
+        <wa-input
+          type="number"
+          name="min_selected"
+          label="Min Selected"
+          help-text="Only applies to multiselect. Leave blank for no minimum."
+          value="{{ modifier.min_selected ?? '' }}"
+        ></wa-input>
+      </div>
+
+      <div id="modifier-max-selected-wrap">
+        <wa-input
+          type="number"
+          name="max_selected"
+          label="Max Selected"
+          help-text="Only applies to multiselect. Leave blank for no limit."
+          value="{{ modifier.max_selected ?? '' }}"
+        ></wa-input>
+      </div>
+
       <wa-input type="number" name="sort_order" label="Sort Order" value="{{ modifier.sort_order ?? 0 }}" required></wa-input>
 
       <wa-button type="submit" variant="primary">{{ is_new ? 'Create Modifier' : 'Save Changes' }}</wa-button>
     </form>
-  </wa-card>
+  
+  <script type="module">
+    function getWaSelectValue(el) {
+      if (!el) return '';
+      const direct = el.value ?? '';
+      if (direct) return String(direct);
+      const attr = el.getAttribute('value');
+      if (attr) return String(attr);
+      const selected = el.querySelector('wa-option[selected]');
+      if (selected) {
+        const v = selected.getAttribute('value');
+        if (v) return String(v);
+      }
+      return '';
+    }
+
+    function syncModifierTypeFields() {
+      const typeEl = document.querySelector('wa-select[name="modifier_type"]');
+      const optionsWrap = document.getElementById('modifier-options-wrap');
+      const minWrap = document.getElementById('modifier-min-selected-wrap');
+      const maxWrap = document.getElementById('modifier-max-selected-wrap');
+      if (!typeEl || !optionsWrap || !minWrap || !maxWrap) return;
+
+      const t = getWaSelectValue(typeEl).toLowerCase();
+      const showOptions = (t === 'select' || t === 'multiselect');
+      const showMax = (t === 'multiselect');
+
+      optionsWrap.style.display = showOptions ? '' : 'none';
+      minWrap.style.display = showMax ? '' : 'none';
+      maxWrap.style.display = showMax ? '' : 'none';
+    }
+
+    // Web Awesome emits wa-change; also listen for change as a fallback.
+    const typeEl = document.querySelector('wa-select[name="modifier_type"]');
+    if (typeEl) {
+      typeEl.addEventListener('wa-change', syncModifierTypeFields);
+      typeEl.addEventListener('change', syncModifierTypeFields);
+    }
+
+    // Initial sync: Web Awesome components may not have upgraded by the time this runs.
+    // Do a few passes: now, after DOM ready, after custom elements define, and after paint.
+    syncModifierTypeFields();
+    window.addEventListener('DOMContentLoaded', syncModifierTypeFields);
+    if (window.customElements?.whenDefined) {
+      customElements.whenDefined('wa-select').then(() => {
+        syncModifierTypeFields();
+        requestAnimationFrame(() => requestAnimationFrame(syncModifierTypeFields));
+      });
+    } else {
+      requestAnimationFrame(() => requestAnimationFrame(syncModifierTypeFields));
+    }
+  </script>
+</wa-card>
 {% endblock %}
 

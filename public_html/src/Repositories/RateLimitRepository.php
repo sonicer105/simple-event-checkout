@@ -28,14 +28,19 @@ final class RateLimitRepository
         $now = time();
         $windowStart = (int) (intdiv($now, $windowSeconds) * $windowSeconds);
 
-        // LAST_INSERT_ID trick lets us read the updated hit count without a separate SELECT.
+        // Two-step (upsert + select) keeps the logic simple and avoids LAST_INSERT_ID edge cases.
         $this->db->executeStatement(
             'INSERT INTO rate_limits (ip, route_key, window_start, hits) VALUES (?, ?, ?, 1)
 '
-            . 'ON DUPLICATE KEY UPDATE hits = LAST_INSERT_ID(hits + 1)',
+            . 'ON DUPLICATE KEY UPDATE hits = hits + 1',
             [$ip, $routeKey, $windowStart]
         );
 
-        return (int) $this->db->fetchOne('SELECT LAST_INSERT_ID()');
+        $hits = $this->db->fetchOne(
+            'SELECT hits FROM rate_limits WHERE ip = ? AND route_key = ? AND window_start = ?',
+            [$ip, $routeKey, $windowStart]
+        );
+
+        return (int) ($hits ?? 0);
     }
 }

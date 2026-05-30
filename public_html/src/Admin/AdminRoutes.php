@@ -18,6 +18,7 @@ use App\Repositories\PurchaseRepository;
 use App\Repositories\PurchaseTicketAddonRepository;
 use App\Repositories\PurchaseTicketModifierRepository;
 use App\Repositories\PurchaseTicketRepository;
+use App\Stock\StockService;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\PngWriter;
 use OTPHP\TOTP;
@@ -47,6 +48,7 @@ final class AdminRoutes
         PurchaseTicketAddonRepository $purchaseTicketAddons,
         Mailer $mailer,
         EmailRenderer $emailRenderer,
+        StockService $stock,
     ): void {
         $app->get('/admin/login', function (Request $request, Response $response) {
             return Twig::fromRequest($request)->render($response, 'admin/login.twig', [
@@ -240,7 +242,7 @@ final class AdminRoutes
         });
 
         // Protected admin pages.
-        $app->group('/admin', function (Group $group) use ($adminRepo, $auditRepo, $lockoutRepo, $eventRepo, $variationRepo, $modifierRepo, $addonRepo, $purchaseRepo, $purchaseTickets, $purchaseTicketModifiers, $purchaseTicketAddons, $mailer, $emailRenderer, $config) {
+        $app->group('/admin', function (Group $group) use ($adminRepo, $auditRepo, $lockoutRepo, $eventRepo, $variationRepo, $modifierRepo, $addonRepo, $purchaseRepo, $purchaseTickets, $purchaseTicketModifiers, $purchaseTicketAddons, $mailer, $emailRenderer, $config, $stock) {
             $group->get('', function (Request $request, Response $response) use ($eventRepo) {
                 $admin = (array) $request->getAttribute('admin');
 
@@ -308,9 +310,13 @@ final class AdminRoutes
                     }
 
                     $eventWeekStart = $startAt->modify('monday this week');
-                    $capAt = $nowWeekStart < $eventWeekStart ? $nowWeekStart : $eventWeekStart;
 
-                    $from = $capAt->sub(new \DateInterval('P364D'));
+                    // We group sales by week_start (Monday). To include the current (or event) week in an exclusive
+                    // `< $to` range, cap at the *start* of the week and query up to the start of the next week.
+                    $capWeekStart = $nowWeekStart < $eventWeekStart ? $nowWeekStart : $eventWeekStart;
+                    $capAt = $capWeekStart->add(new \DateInterval('P7D'));
+
+                    $from = $capAt->sub(new \DateInterval('P365D'));
                     $rows = $eventRepo->listWeeklyTicketCountsForEvent($eventId, $from, $capAt);
                     $byWeek = [];
                     foreach ($rows as $r) {
@@ -608,7 +614,7 @@ final class AdminRoutes
                 return $response->withHeader('Location', '/admin/events/' . $id)->withStatus(302);
             });
 
-            $group->get('/events/{id}', function (Request $request, Response $response, array $args) use ($eventRepo) {
+            $group->get('/events/{id}', function (Request $request, Response $response, array $args) use ($eventRepo, $stock) {
                 $admin = (array) $request->getAttribute('admin');
                 $id = (int) ($args['id'] ?? 0);
                 if ($id <= 0) {
@@ -630,6 +636,8 @@ final class AdminRoutes
                     'statuses' => ['draft', 'published', 'unlisted', 'archived'],
                         'image_options' => self::listEventImageOptions(),
                     'error' => null,
+                    'stock_overview' => $stock->getTicketStockOverview($id),
+                    'addon_stock_overview' => $stock->getAddonStockOverview($id),
                 ]);
             });
 
@@ -805,7 +813,7 @@ final class AdminRoutes
                     'event' => $event,
                     'is_new' => true,
                     'modifier' => ['modifier_type' => 'text', 'is_required' => 0, 'sort_order' => 0],
-                    'types' => ['text', 'checkbox'],
+                    'types' => ['text', 'checkbox', 'select', 'multiselect'],
                     'error' => null,
                 ]);
             });
@@ -826,10 +834,12 @@ final class AdminRoutes
                         'event' => $event,
                         'is_new' => true,
                         'modifier' => $payload['modifier'],
-                        'types' => ['text', 'checkbox'],
+                        'types' => ['text', 'checkbox', 'select', 'multiselect'],
                         'error' => $payload['error'],
                     ]);
                 }
+
+                unset($payload['modifier']['options_text']);
 
                 $id = $modifierRepo->create($payload['modifier']);
                 return $response->withHeader('Location', '/admin/events/' . $eventId . '/modifiers/' . $id)->withStatus(302);
@@ -849,12 +859,23 @@ final class AdminRoutes
                     return $response->withHeader('Location', '/admin/events/' . $eventId . '/modifiers')->withStatus(302);
                 }
 
-                return Twig::fromRequest($request)->render($response, 'admin/event-modifier-edit.twig', [
+                
+
+                // Helper for the edit form: show one option per line.
+                $modifier['options_text'] = '';
+                if (is_string($modifier['options_json'] ?? null) && trim((string) $modifier['options_json']) !== '') {
+                    $decoded = json_decode((string) $modifier['options_json'], true);
+                    if (is_array($decoded)) {
+                        $lines = array_values(array_filter(array_map('strval', $decoded), static fn(string $v): bool => trim($v) !== ''));
+                        $modifier['options_text'] = implode("\n", $lines);
+                    }
+                }
+return Twig::fromRequest($request)->render($response, 'admin/event-modifier-edit.twig', [
                     'admin' => $admin,
                     'event' => $event,
                     'is_new' => false,
                     'modifier' => $modifier,
-                    'types' => ['text', 'checkbox'],
+                    'types' => ['text', 'checkbox', 'select', 'multiselect'],
                     'error' => null,
                 ]);
             });
@@ -882,10 +903,12 @@ final class AdminRoutes
                         'event' => $event,
                         'is_new' => false,
                         'modifier' => $payload['modifier'],
-                        'types' => ['text', 'checkbox'],
+                        'types' => ['text', 'checkbox', 'select', 'multiselect'],
                         'error' => $payload['error'],
                     ]);
                 }
+
+                unset($payload['modifier']['options_text']);
 
                 $modifierRepo->update($id, $payload['modifier']);
                 return $response->withHeader('Location', '/admin/events/' . $eventId . '/modifiers/' . $id)->withStatus(302);
@@ -1072,6 +1095,15 @@ final class AdminRoutes
 
                 $modsByTicketId = [];
                 foreach ($modRows as $m) {
+                    $m['value_display'] = $m['value'] ?? null;
+                    if ((string) ($m['modifier_type'] ?? '') === 'multiselect' && is_string($m['value'] ?? null) && trim((string) $m['value']) !== '') {
+                        $decoded = json_decode((string) $m['value'], true);
+                        if (is_array($decoded)) {
+                            $vals = array_values(array_filter(array_map('strval', $decoded), static fn (string $v): bool => trim($v) !== ''));
+                            $m['value_display'] = implode(', ', $vals);
+                        }
+                    }
+
                     $tid = (int) ($m['purchase_ticket_id'] ?? 0);
                     $modsByTicketId[$tid] ??= [];
                     $modsByTicketId[$tid][] = $m;
@@ -1355,6 +1387,15 @@ final class AdminRoutes
 
                 $modsByTicketId = [];
                 foreach ($modRows as $m) {
+                    $m['value_display'] = $m['value'] ?? null;
+                    if ((string) ($m['modifier_type'] ?? '') === 'multiselect' && is_string($m['value'] ?? null) && trim((string) $m['value']) !== '') {
+                        $decoded = json_decode((string) $m['value'], true);
+                        if (is_array($decoded)) {
+                            $vals = array_values(array_filter(array_map('strval', $decoded), static fn (string $v): bool => trim($v) !== ''));
+                            $m['value_display'] = implode(', ', $vals);
+                        }
+                    }
+
                     $tid = (int) ($m['purchase_ticket_id'] ?? 0);
                     $modsByTicketId[$tid] ??= [];
                     $modsByTicketId[$tid][] = $m;
@@ -1705,7 +1746,7 @@ final class AdminRoutes
         $required = (int) ($data['is_required'] ?? 0);
         $sortRaw = trim((string) ($data['sort_order'] ?? '0'));
 
-        $allowedTypes = ['text', 'checkbox'];
+        $allowedTypes = ['text', 'checkbox', 'select', 'multiselect'];
         if (!in_array($type, $allowedTypes, true)) {
             $type = 'text';
         }
@@ -1715,13 +1756,60 @@ final class AdminRoutes
             $error = 'Name is required.';
         }
 
+        $optionsRaw = (string) ($data['options'] ?? '');
+        $options = [];
+        foreach (preg_split('/
+|
+|
+/', $optionsRaw) as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+            $options[] = $line;
+        }
+        $options = array_values(array_unique($options));
+
+        $optionsJson = null;
+        if ($type === 'select' || $type === 'multiselect') {
+            if (count($options) === 0) {
+                $error = $error ?? 'Options are required for select/multiselect modifiers.';
+            } else {
+                $optionsJson = json_encode($options, JSON_UNESCAPED_SLASHES);
+            }
+        }
+
+        $minSelected = null;
+        $maxSelected = null;
+        if ($type === 'multiselect') {
+            $rawMin = trim((string) ($data['min_selected'] ?? ''));
+            if ($rawMin !== '') {
+                $minSelected = max(0, (int) $rawMin);
+            }
+
+            $rawMax = trim((string) ($data['max_selected'] ?? ''));
+            if ($rawMax !== '') {
+                $maxSelected = max(1, (int) $rawMax);
+            }
+
+            if ($maxSelected !== null && $minSelected !== null && $maxSelected < $minSelected) {
+                $error = $error ?? 'Max Selected must be greater than or equal to Min Selected.';
+            }
+        }
+
         $modifier = [
             'event_id' => $eventId,
             'name' => $name,
             'modifier_type' => $type,
             'is_required' => $required ? 1 : 0,
             'sort_order' => (int) $sortRaw,
+            'options_json' => $optionsJson,
+            'min_selected' => $minSelected,
+            'max_selected' => $maxSelected,
         ];
+
+        // For re-rendering form values on validation errors.
+        $modifier['options_text'] = $optionsRaw;
 
         return ['modifier' => $modifier, 'error' => $error];
     }
