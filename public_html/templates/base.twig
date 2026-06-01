@@ -7,7 +7,7 @@
     <title>{{ title ?? (app.app_name ?? 'Simple Event Checkout') }}</title>
     <link rel="stylesheet" href="/assets/vendor/webawesome/styles/webawesome.css" />
     <link rel="stylesheet" href="/assets/vendor/webawesome/styles/themes/default.css" />
-    <link rel="stylesheet" href="/assets/app.css" />
+    <link rel="stylesheet" href="/assets/app.css?v=2" />
   </head>
   <body>
     {% if app.app_env is defined and app.app_env != 'prod' and __template is defined %}
@@ -32,6 +32,16 @@
     <div class="page">
       {% block content %}{% endblock %}
     </div>
+
+    <footer class="page-footer">
+      <p class="wa-caption-s page-footer__text">
+        Application designed and developed by <a href="https://linuxpony.dev/" target="_blank" rel="noopener noreferrer" class="wa-link-plain">LinuxAvali</a>
+        <br>
+        <a href="https://github.com/sonicer105/simple-event-checkout" target="_blank" rel="noopener noreferrer" class="wa-link-plain">
+          This software is licensed under the GNU General Public License v3.0 (GPL-3.0).
+        </a>
+      </p>
+    </footer>
 
     <script type="module" src="/assets/webawesome-init.js"></script>
   </body>

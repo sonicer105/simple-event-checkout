@@ -631,3 +631,14 @@ wa-card.checkin-lookup-card::part(body) {
     font-size: 22px;
   }
 }
+
+.page-footer {
+  margin: 2rem 0 0;
+  padding: 0 0 2rem;
+  text-align: center;
+}
+
+.page-footer__text {
+  margin: 0;
+  opacity: 0.85;
+}
