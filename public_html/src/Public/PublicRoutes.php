@@ -118,6 +118,7 @@ final class PublicRoutes
             $clientIp = RequestUtil::clientIp($config, $request);
             return Twig::fromRequest($request)->render($response, 'public/events.twig', [
                 'app' => $config,
+                '__template' => 'public/events.twig (1)',
                 'events' => $list,
                 'client_ip' => $clientIp,
             ]);
@@ -159,6 +160,7 @@ final class PublicRoutes
 
             return Twig::fromRequest($request)->render($response, 'public/event-detail.twig', [
                 'app' => $config,
+                '__template' => 'public/events-detail.twig (2)',
                 'event' => $event,
                 'variations' => $variations->listByEventId($eventId),
                 'modifiers' => $modifierList,
@@ -174,6 +176,7 @@ final class PublicRoutes
             unset($_SESSION['cart_error']);
             return Twig::fromRequest($request)->render($response, 'public/cart.twig', [
                 'app' => $config,
+                '__template' => 'public/cart.twig (3)',
                 'items' => $items,
                 'subtotal_cents' => $subtotalCents,
                 'cart_error' => $cartError,
@@ -184,8 +187,12 @@ final class PublicRoutes
             [, $items, $subtotalCents] = $loadCart();
             $email = (string) ($_SESSION['checkout_email'] ?? '');
 
+            if (($config['app_env'] ?? 'dev') !== 'prod') {
+                $response = $response->withHeader('X-App-Route', 'public_checkout');
+            }
             return Twig::fromRequest($request)->render($response, 'public/checkout.twig', [
                 'app' => $config,
+                '__template' => 'public/checkout.twig (4)',
                 'items' => $items,
                 'subtotal_cents' => $subtotalCents,
                 'email' => $email,
@@ -214,6 +221,7 @@ final class PublicRoutes
             if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 return Twig::fromRequest($request)->render($response, 'public/checkout.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout.twig (5)',
                     'items' => $items,
                     'subtotal_cents' => $subtotalCents,
                     'email' => $email,
@@ -229,6 +237,7 @@ final class PublicRoutes
             if ($locationId === '') {
                 return Twig::fromRequest($request)->render($response, 'public/checkout.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout.twig (6)',
                     'items' => $items,
                     'subtotal_cents' => $subtotalCents,
                     'email' => $email,
@@ -236,8 +245,13 @@ final class PublicRoutes
                 ]);
             }
 
-            $uri = $request->getUri();
-            $origin = rtrim($uri->getScheme() . '://' . $uri->getAuthority(), '/');
+            $baseUrl = (string) ($config['base_url'] ?? '');
+            if ($baseUrl !== '') {
+                $origin = rtrim($baseUrl, '/');
+            } else {
+                $uri = $request->getUri();
+                $origin = rtrim($uri->getScheme() . '://' . $uri->getAuthority(), '/');
+            }
             $redirectUrl = $origin . '/checkout/complete';
 
             $currency = (string) ($config['store_currency'] ?? 'CAD');
@@ -255,6 +269,7 @@ final class PublicRoutes
                 'provider_reference' => null,
             ]);
             $_SESSION['pending_purchase_id'] = $purchaseId;
+            $_SESSION['checkout_started_at'] = time();
 
             // Build Square order line items so receipts/dashboard are itemized.
             $lineItems = [];
@@ -271,7 +286,19 @@ final class PublicRoutes
                     if (($m['modifier_type'] ?? '') === 'checkbox') {
                         $modifierSummaryParts[] = $namePart;
                     } else {
-                        $val = trim((string) ($m['value'] ?? ''));
+                        // Multiselect values are stored as JSON arrays; make the note human-readable for chargebacks/refunds.
+                        $valRaw = trim((string) ($m['value'] ?? ''));
+                        $val = $valRaw;
+                        if ($valRaw !== '' && str_starts_with($valRaw, '[')) {
+                            $decoded = json_decode($valRaw, true);
+                            if (is_array($decoded)) {
+                                $decoded = array_values(array_filter(array_map('strval', $decoded), static fn (string $v): bool => trim($v) !== ''));
+                                if (count($decoded) > 0) {
+                                    $val = implode(', ', $decoded);
+                                }
+                            }
+                        }
+
                         $modifierSummaryParts[] = $val !== '' ? ($namePart . ': ' . $val) : $namePart;
                     }
                 }
@@ -327,6 +354,7 @@ final class PublicRoutes
             } catch (\Throwable $e) {
                 return Twig::fromRequest($request)->render($response, 'public/checkout.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout.twig (7)',
                     'items' => $items,
                     'subtotal_cents' => $subtotalCents,
                     'email' => $email,
@@ -346,10 +374,110 @@ final class PublicRoutes
             return $response->withHeader('Location', $url)->withStatus(302);
         });
 
-        $app->get('/checkout/complete', function (Request $request, Response $response) use ($config, $loadCart, $square, $purchases, $purchaseTickets, $purchaseTicketModifiers, $purchaseTicketAddons, $carts, $mailer, $emailRenderer) {
+        
+
+        $app->get('/checkout/complete/poll', function (Request $request, Response $response) use ($config, $square) {
+            $expected = (int) ($_SESSION['checkout_expected_total'] ?? 0);
+            $sessionOrderId = (string) ($_SESSION['square_order_id'] ?? '');
+            $sessionEmail = (string) ($_SESSION['checkout_email'] ?? '');
+            $pendingPurchaseId = (int) ($_SESSION['pending_purchase_id'] ?? 0);
+
+            if ($sessionOrderId === '' || $pendingPurchaseId <= 0) {
+                $payload = ['status' => 'error', 'message' => 'Missing checkout session.'];
+                $response->getBody()->write(json_encode($payload, JSON_PRETTY_PRINT));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+            }
+
+            $squareCfg = (array) ($config['square'] ?? []);
+            $locationId = (string) ($squareCfg['location_id'] ?? '');
+
+            $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+            $begin = $now->sub(new \DateInterval('PT2H'))->format(DATE_RFC3339);
+            $end = $now->add(new \DateInterval('PT10M'))->format(DATE_RFC3339);
+
+            try {
+                $list = $square->listPayments([
+                    'location_id' => $locationId !== '' ? $locationId : null,
+                    'begin_time' => $begin,
+                    'end_time' => $end,
+                    'sort_order' => 'DESC',
+                    'limit' => 100,
+                ]);
+            } catch (\Throwable $e) {
+                $payload = ['status' => 'error', 'message' => 'Square lookup failed: ' . $e->getMessage()];
+                $response->getBody()->write(json_encode($payload, JSON_PRETTY_PRINT));
+                return $response->withHeader('Content-Type', 'application/json')->withStatus(502);
+            }
+
+            foreach ((array) ($list['payments'] ?? []) as $p) {
+                $p = (array) $p;
+                if ((string) ($p['status'] ?? '') !== 'COMPLETED') {
+                    continue;
+                }
+
+                if ((string) ($p['order_id'] ?? '') !== $sessionOrderId) {
+                    continue;
+                }
+
+                if ($expected > 0) {
+                    $amt = (int) ($p['total_money']['amount'] ?? 0);
+                    if ($amt !== $expected) {
+                        continue;
+                    }
+                }
+
+                // If the session is present, require buyer email to match when Square provides it.
+                $pEmail = (string) ($p['buyer_email_address'] ?? '');
+                if ($sessionEmail !== '' && $pEmail !== '' && strcasecmp($pEmail, $sessionEmail) !== 0) {
+                    continue;
+                }
+
+                $paymentId = (string) ($p['id'] ?? '');
+                if ($paymentId === '') {
+                    continue;
+                }
+
+                // Verify reference_id matches our pending purchase id.
+                try {
+                    $paymentResp = $square->getPayment($paymentId);
+                    $payment = (array) ($paymentResp['payment'] ?? []);
+                    $oid = (string) ($payment['order_id'] ?? '');
+                    if ($oid === '') {
+                        continue;
+                    }
+                    $orderResp = $square->getOrder($oid);
+                    $order = (array) ($orderResp['order'] ?? []);
+                    $ref = (string) ($order['reference_id'] ?? '');
+                    if ($ref === '' || !ctype_digit($ref) || (int) $ref !== $pendingPurchaseId) {
+                        continue;
+                    }
+                } catch (\Throwable) {
+                    continue;
+                }
+
+                $payload = ['status' => 'ok', 'payment_id' => $paymentId, 'order_id' => $sessionOrderId];
+                $response->getBody()->write(json_encode($payload, JSON_PRETTY_PRINT));
+                return $response->withHeader('Content-Type', 'application/json');
+            }
+
+            $payload = ['status' => 'pending'];
+            $response->getBody()->write(json_encode($payload, JSON_PRETTY_PRINT));
+            return $response->withHeader('Content-Type', 'application/json');
+        });
+$app->get('/checkout/complete', function (Request $request, Response $response) use ($config, $loadCart, $square, $purchases, $purchaseTickets, $purchaseTicketModifiers, $purchaseTicketAddons, $carts, $mailer, $emailRenderer) {
+            $isProd = (($config['app_env'] ?? 'dev') === 'prod');
+            if (!$isProd) {
+                $response = $response->withHeader('X-App-Route', 'public_checkout_complete');
+            }
             $params = $request->getQueryParams();
-            $paymentId = (string) ($params['transactionId'] ?? ($params['transaction_id'] ?? ($params['paymentId'] ?? ($params['payment_id'] ?? ''))));
+
+            // Prefer an explicit payment id (e.g. from our poller) over Square's redirect transactionId.
+            $explicitPaymentId = (string) ($params['payment_id'] ?? ($params['paymentId'] ?? ($params['payment'] ?? '')));
+            $redirectTxnId = (string) ($params['transactionId'] ?? ($params['transaction_id'] ?? ''));
+            $paymentId = $explicitPaymentId !== '' ? $explicitPaymentId : $redirectTxnId;
+
             $orderId = (string) ($params['orderId'] ?? '');
+            $referenceId = (string) ($params['referenceId'] ?? ($params['reference_id'] ?? ''));
 
             $expected = (int) ($_SESSION['checkout_expected_total'] ?? 0);
             $email = (string) ($_SESSION['checkout_email'] ?? '');
@@ -357,6 +485,14 @@ final class PublicRoutes
             $sessionEmail = (string) ($_SESSION['checkout_email'] ?? '');
             $sessionHash = (string) ($_SESSION['checkout_session_hash'] ?? '');
             $sessionNote = (string) ($_SESSION['square_payment_note'] ?? '');
+            $pendingPurchaseId = (int) ($_SESSION['pending_purchase_id'] ?? 0);
+
+            // In production, do not trust redirect query params for payment IDs. Resolve using the
+            // session order_id from CreatePaymentLink and validate via order.reference_id.
+            if ($isProd && $sessionOrderId !== '' && $explicitPaymentId === '') {
+                $paymentId = '';
+                $orderId = $sessionOrderId;
+            }
 
             // Sandbox limitation: Square may not append params to redirect_url for payment links.
             // If paymentId isn't present, attempt to locate the payment by:
@@ -370,19 +506,35 @@ final class PublicRoutes
                 $begin = $now->sub(new \DateInterval('PT2H'))->format(DATE_RFC3339);
                 $end = $now->add(new \DateInterval('PT10M'))->format(DATE_RFC3339);
 
-                try {
-                    $list = $square->listPayments([
-                        'location_id' => $locationId !== '' ? $locationId : null,
-                        'begin_time' => $begin,
-                        'end_time' => $end,
-                        'sort_order' => 'DESC',
-                        'limit' => 100,
-                    ]);
-                } catch (\Throwable $e) {
+                $list = null;
+                $lastErr = null;
+
+                // Payments created by payment links can take a moment to appear in ListPayments.
+                for ($attempt = 0; $attempt < 3; $attempt++) {
+                    try {
+                        $list = $square->listPayments([
+                            'location_id' => $locationId !== '' ? $locationId : null,
+                            'begin_time' => $begin,
+                            'end_time' => $end,
+                            'sort_order' => 'DESC',
+                            'limit' => 100,
+                        ]);
+                        $lastErr = null;
+                        break;
+                    } catch (\Throwable $e) {
+                        $lastErr = $e;
+                        // brief backoff
+                        usleep(250000);
+                    }
+                }
+
+                if (!is_array($list)) {
+                    $msg = $lastErr ? $lastErr->getMessage() : 'Unknown error.';
                     return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                         'app' => $config,
+                        '__template' => 'public/checkout-complete.twig (8)',
                         'ok' => false,
-                        'message' => 'Missing transaction id from Square redirect, and lookup failed: ' . $e->getMessage(),
+                        'message' => 'Missing transaction id from Square redirect, and lookup failed: ' . $msg,
                     ]);
                 }
 
@@ -406,6 +558,12 @@ final class PublicRoutes
                         continue;
                     }
 
+                    // If the session is missing (e.g. link opened in a different browser), fall back to the orderId
+                    // parameter when provided.
+                    if ($sessionOrderId === '' && $orderId !== '' && $pOrderId !== $orderId) {
+                        continue;
+                    }
+
                     // If we don't have order_id, try to match the buyer email when available.
                     if ($sessionOrderId === '' && $sessionEmail !== '' && $pEmail !== '' && strcasecmp($pEmail, $sessionEmail) !== 0) {
                         continue;
@@ -426,21 +584,176 @@ final class PublicRoutes
             }
 
             if ($paymentId === '') {
+                if ($isProd && $sessionOrderId !== '' && $pendingPurchaseId > 0) {
+                    return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
+                        'app' => $config,
+                        '__template' => 'public/checkout-complete.twig (9)',
+                        'ok' => false,
+                        'pending' => true,
+                        'message' => 'Finalizing your payment…',
+                    ]);
+                }
+
                 return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout-complete.twig (10)',
                     'ok' => false,
-                    'message' => 'Missing transaction id from Square redirect. If you used the sandbox testing panel, try starting checkout again in the same browser session (cookies must be enabled).',
+                    'message' => "We couldn't automatically verify your payment yet. If you just completed checkout, wait a few seconds and refresh. If you opened this link in a different browser/device, verification may require support.",
                 ]);
             }
 
+            // Ensure the var exists for static analysis (and for the fallback resolvers below).
+            $paymentResp = null;
             try {
                 $paymentResp = $square->getPayment($paymentId);
             } catch (\Throwable $e) {
-                return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
-                    'app' => $config,
-                    'ok' => false,
-                    'message' => 'Failed to verify payment with Square: ' . $e->getMessage(),
-                ]);
+                // In production, Square's redirect sometimes provides an order ID in transactionId.
+                // If retrieving by payment id fails, attempt to locate the payment by order_id within a short window.
+                $msg = $e->getMessage();
+
+                // Prefer the order_id we created with the payment link (stored in session). Some redirects provide
+                // non-order identifiers in orderId/transactionId.
+                $candidateOrderIds = [];
+                if ($sessionOrderId !== '') {
+                    $candidateOrderIds[] = $sessionOrderId;
+                }
+                if ($orderId !== '' && $orderId !== $sessionOrderId) {
+                    $candidateOrderIds[] = $orderId;
+                }
+
+                if (count($candidateOrderIds) > 0 && str_contains($msg, 'Could not find payment with id')) {
+                    $squareCfg = (array) ($config['square'] ?? []);
+                    $locationId = (string) ($squareCfg['location_id'] ?? '');
+
+                    $now = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+                    $begin = $now->sub(new \DateInterval('PT6H'))->format(DATE_RFC3339);
+                    $end = $now->add(new \DateInterval('PT10M'))->format(DATE_RFC3339);
+
+                    try {
+                        $list = $square->listPayments([
+                            'location_id' => $locationId !== '' ? $locationId : null,
+                            'begin_time' => $begin,
+                            'end_time' => $end,
+                            'sort_order' => 'DESC',
+                            'limit' => 100,
+                        ]);
+
+                        $payments = (array) ($list['payments'] ?? []);
+
+                        $tryResolve = function (string $oid) use (&$paymentResp, &$paymentId, &$orderId, $payments, $expected, $square, $pendingPurchaseId): void {
+                            foreach ($payments as $p) {
+                                $p = (array) $p;
+                                if ((string) ($p['status'] ?? '') !== 'COMPLETED') {
+                                    continue;
+                                }
+                                if ((string) ($p['order_id'] ?? '') !== $oid) {
+                                    continue;
+                                }
+                                if ($expected > 0) {
+                                    $amt = (int) ($p['total_money']['amount'] ?? 0);
+                                    if ($amt !== $expected) {
+                                        continue;
+                                    }
+                                }
+
+                                $resolvedPaymentId = (string) ($p['id'] ?? '');
+                                if ($resolvedPaymentId === '') {
+                                    continue;
+                                }
+
+                                $paymentId = $resolvedPaymentId;
+                                $orderId = (string) ($p['order_id'] ?? $orderId);
+                                $paymentResp = $square->getPayment($paymentId);
+
+                                if ($pendingPurchaseId > 0) {
+                                    $tmpPayment = (array) ($paymentResp['payment'] ?? []);
+                                    $tmpOrderId = (string) ($tmpPayment['order_id'] ?? '');
+                                    if ($tmpOrderId !== '') {
+                                        try {
+                                            $orderResp = $square->getOrder($tmpOrderId);
+                                            $order = (array) ($orderResp['order'] ?? []);
+                                            $ref = (string) ($order['reference_id'] ?? '');
+                                            if ($ref === '' || !ctype_digit($ref) || (int) $ref !== $pendingPurchaseId) {
+                                                $paymentResp = null;
+                                                return;
+                                            }
+                                        } catch (\Throwable) {
+                                            $paymentResp = null;
+                                            return;
+                                        }
+                                    }
+                                }
+
+                                return;
+                            }
+                        };
+
+                        foreach ($candidateOrderIds as $oid) {
+                            $tryResolve((string) $oid);
+                            if ($paymentResp !== null) {
+                                break;
+                            }
+                        }
+
+                        // Last resort: only when we don't have a pending purchase in-session.
+                        // Otherwise, matching by email+amount can accidentally pick an older payment.
+                        if ($paymentResp === null && $pendingPurchaseId <= 0 && $sessionEmail !== '' && $expected > 0) {
+                            foreach ($payments as $p) {
+                                $p = (array) $p;
+                                if ((string) ($p['status'] ?? '') !== 'COMPLETED') {
+                                    continue;
+                                }
+                                $amt = (int) ($p['total_money']['amount'] ?? 0);
+                                if ($amt !== $expected) {
+                                    continue;
+                                }
+                                $pEmail = (string) ($p['buyer_email_address'] ?? '');
+                                if ($pEmail === '' || strcasecmp($pEmail, $sessionEmail) != 0) {
+                                    continue;
+                                }
+                                $resolvedPaymentId = (string) ($p['id'] ?? '');
+                                if ($resolvedPaymentId === '') {
+                                    continue;
+                                }
+                                $paymentId = $resolvedPaymentId;
+                                $orderId = (string) ($p['order_id'] ?? $orderId);
+                                $paymentResp = $square->getPayment($paymentId);
+
+                                if ($pendingPurchaseId > 0) {
+                                    $tmpPayment = (array) ($paymentResp['payment'] ?? []);
+                                    $tmpOrderId = (string) ($tmpPayment['order_id'] ?? '');
+                                    if ($tmpOrderId !== '') {
+                                        try {
+                                            $orderResp = $square->getOrder($tmpOrderId);
+                                            $order = (array) ($orderResp['order'] ?? []);
+                                            $ref = (string) ($order['reference_id'] ?? '');
+                                            if ($ref === '' || !ctype_digit($ref) || (int) $ref !== $pendingPurchaseId) {
+                                                $paymentResp = null;
+                                                continue;
+                                            }
+                                        } catch (\Throwable) {
+                                            $paymentResp = null;
+                                            continue;
+                                        }
+                                    }
+                                }
+
+                                break;
+                            }
+                        }
+                    } catch (\Throwable $ignored) {
+                        // fall through to failure render
+                    }
+                }
+
+                if ($paymentResp === null) {
+                    return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
+                        'app' => $config,
+                        '__template' => 'public/checkout-complete.twig (11)',
+                        'ok' => false,
+                        'message' => 'Failed to verify payment with Square: ' . $e->getMessage(),
+                    ]);
+                }
             }
             $payment = (array) ($paymentResp['payment'] ?? []);
             $status = (string) ($payment['status'] ?? '');
@@ -451,6 +764,7 @@ final class PublicRoutes
             if ($status !== 'COMPLETED') {
                 return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout-complete.twig (12)',
                     'ok' => false,
                     'message' => 'Payment is not completed (status: ' . $status . ').',
                 ]);
@@ -459,6 +773,7 @@ final class PublicRoutes
             if ($expected > 0 && $paidAmount !== $expected) {
                 return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout-complete.twig (13)',
                     'ok' => false,
                     'message' => 'Payment total did not match the expected cart total.',
                 ]);
@@ -467,6 +782,7 @@ final class PublicRoutes
             if ($orderId !== '' && $paidOrderId !== '' && $orderId !== $paidOrderId) {
                 return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout-complete.twig (14)',
                     'ok' => false,
                     'message' => 'Order id mismatch.',
                 ]);
@@ -477,6 +793,7 @@ final class PublicRoutes
             if ($existingPurchase) {
                 return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout-complete.twig (15)',
                     'ok' => true,
                     'message' => 'Payment completed. Thanks!',
                     'purchase_id' => (int) $existingPurchase['id'],
@@ -488,6 +805,7 @@ final class PublicRoutes
             if (!$cart || count($items) === 0) {
                 return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                     'app' => $config,
+                    '__template' => 'public/checkout-complete.twig (16)',
                     'ok' => true,
                     'message' => 'Payment completed. Cart already cleared.',
                 ]);
@@ -594,7 +912,8 @@ final class PublicRoutes
                 $_SESSION['checkout_expected_total'],
                 $_SESSION['square_payment_link_id'],
                 $_SESSION['square_order_id'],
-                $_SESSION['pending_purchase_id']
+                $_SESSION['pending_purchase_id'],
+                $_SESSION['checkout_started_at']
             );
 
             // Send receipt + QR codes email (best-effort; never guess the email from Square).
@@ -605,6 +924,7 @@ final class PublicRoutes
                     $subject = (string) (($config['app_name'] ?? 'Simple Event Checkout') . ' — Order Confirmation');
                     $html = $emailRenderer->render('email/order-confirmation.twig', [
                         'app' => $config,
+                        '__template' => 'email/order-confirmation.twig (17)',
                         'purchase_id' => $purchaseId,
                         'total_cents' => $paidAmount,
                         'currency' => (string) ($config['store_currency'] ?? 'CAD'),
@@ -631,6 +951,7 @@ final class PublicRoutes
 
             return Twig::fromRequest($request)->render($response, 'public/checkout-complete.twig', [
                 'app' => $config,
+                '__template' => 'public/checkout-complete.twig (18)',
                 'ok' => true,
                 'message' => 'Payment completed. Thanks!',
                 'purchase_id' => $purchaseId,

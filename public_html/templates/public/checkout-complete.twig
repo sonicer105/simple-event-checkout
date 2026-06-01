@@ -5,7 +5,55 @@
   <div class="wa-stack wa-gap-2xl">
     <h2 class="wa-heading-xl">Checkout</h2>
 
-    {% if ok %}
+    {% if pending is defined and pending %}
+      <wa-callout variant="neutral">
+        <div class="wa-cluster wa-gap-s wa-align-items-center">
+          <wa-spinner style="font-size: 1.25rem;"></wa-spinner>
+          <div>
+            <strong>{{ message ?? 'Finalizing your payment…' }}</strong>
+            <div class="wa-caption-s" style="margin-top: 4px; opacity: 0.9;">This can take a few seconds. Please keep this page open.</div>
+          </div>
+        </div>
+      </wa-callout>
+
+      <script type="module">
+        const pollUrl = '/checkout/complete/poll';
+        const started = Date.now();
+        const timeoutMs = 30000;
+
+        async function tick() {
+          if (Date.now() - started > timeoutMs) {
+            window.location.reload();
+            return;
+          }
+
+          let data;
+          try {
+            const res = await fetch(pollUrl, { headers: { 'Accept': 'application/json' } });
+            data = await res.json();
+          } catch {
+            // transient network error; retry
+            setTimeout(tick, 750);
+            return;
+          }
+
+          if (data && data.status === 'ok' && data.payment_id) {
+            const qs = new URLSearchParams({ payment_id: String(data.payment_id) });
+            window.location.href = '/checkout/complete?' + qs.toString();
+            return;
+          }
+
+          if (data && data.status === 'error') {
+            window.location.reload();
+            return;
+          }
+
+          setTimeout(tick, 750);
+        }
+
+        tick();
+      </script>
+    {% elseif ok %}
       <wa-callout variant="success">
         {{ message ?? 'Payment completed.' }}
         {% if purchase_id is defined %}

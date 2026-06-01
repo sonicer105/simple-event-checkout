@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="/assets/app.css" />
   </head>
   <body>
+    {% if app.app_env is defined and app.app_env != 'prod' and __template is defined %}
+      <!-- template: {{ __template }} -->
+    {% endif %}
     {% if show_public_nav %}
       <div class="public-topbar-wrap">
         <div class="public-topbar">
