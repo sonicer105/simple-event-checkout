@@ -2,7 +2,7 @@
   "name": "simple-event-checkout/app",
   "type": "project",
   "require": {
-    "php": "^8.3",
+    "php": "^8.2",
     "doctrine/dbal": "^3.9",
     "endroid/qr-code": "^6.0",
     "filp/whoops": "^2.16",
