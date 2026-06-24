@@ -134,6 +134,11 @@ final class PublicRoutes
             $eventId = (int) $event['id'];
             $cart = $carts->findBySessionId(hash('sha256', session_id()));
             $cartId = $cart ? (int) ($cart['id'] ?? 0) : 0;
+            $variationList = $variations->listByEventId($eventId);
+            $ticketAvailability = $stock->getTicketAvailabilityForEvent($eventId, $cartId);
+            $baseAvailability = $ticketAvailability['base'] ?? null;
+            $salesClosed = (string) ($event['status'] ?? '') === 'archived';
+            $baseSoldOut = count($variationList) === 0 && $baseAvailability !== null && (int) $baseAvailability <= 0;
 
             $modifierList = $modifiers->listByEventId($eventId);
             foreach ($modifierList as &$m) {
@@ -162,11 +167,13 @@ final class PublicRoutes
                 'app' => $config,
                 '__template' => 'public/events-detail.twig (2)',
                 'event' => $event,
-                'variations' => $variations->listByEventId($eventId),
+                'variations' => $variationList,
                 'modifiers' => $modifierList,
                 'addons' => $addons->listByEventId($eventId),
-                'ticket_availability' => $stock->getTicketAvailabilityForEvent($eventId, $cartId),
+                'ticket_availability' => $ticketAvailability,
                 'addon_availability' => $stock->getAddonAvailabilityForEvent($eventId, $cartId),
+                'sales_closed' => $salesClosed,
+                'base_sold_out' => $baseSoldOut,
             ]);
         });
 

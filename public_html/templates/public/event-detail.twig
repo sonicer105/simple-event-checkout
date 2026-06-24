@@ -2,6 +2,7 @@
 {% set show_public_nav = true %}
 
 {% block content %}
+  {% set purchase_disabled = sales_closed or base_sold_out %}
   <div class="wa-stack wa-gap-2xl">
     <wa-breadcrumb>
       <wa-breadcrumb-item href="/">Events</wa-breadcrumb-item>
@@ -33,6 +34,12 @@
           {% endif %}
         </div>
 
+        {% if sales_closed %}
+          <wa-callout variant="warning">Online sales for this event are closed.</wa-callout>
+        {% elseif base_sold_out %}
+          <wa-callout variant="warning">This event is sold out.</wa-callout>
+        {% endif %}
+
         <div class="wa-split">
           <div class="wa-cluster wa-gap-s">
             <span class="wa-caption-s">{{ event.start_time|format_dt('F j, Y \\a\\t g:i A') }}</span>
@@ -52,7 +59,7 @@
               {% for v in variations %}
                 {% set avail = ticket_availability[v.id ~ ''] ?? null %}
                 {% set sold_out = (avail is not null and avail <= 0) %}
-                <wa-radio appearance="button" value="{{ v.id }}" {% if sold_out %}disabled{% endif %}>
+                <wa-radio appearance="button" value="{{ v.id }}" {% if purchase_disabled or sold_out %}disabled{% endif %}>
                   {{ v.name }} ({{ (v.price_cents / 100)|number_format(2, '.', ',') }}){% if sold_out %} — Sold out{% endif %}
                 </wa-radio>
               {% endfor %}
@@ -61,10 +68,10 @@
 
           {% for m in modifiers %}
             {% if m.modifier_type == 'checkbox' %}
-              <wa-checkbox name="modifiers[{{ m.id }}]" value="1" {% if m.is_required %}required{% endif %}>{{ m.name }}</wa-checkbox>
+              <wa-checkbox name="modifiers[{{ m.id }}]" value="1" {% if m.is_required %}required{% endif %} {% if purchase_disabled %}disabled{% endif %}>{{ m.name }}</wa-checkbox>
             {% elseif m.modifier_type == 'select' %}
               {% set pick_text = m|modifier_pick_text %}
-              <wa-select name="modifiers[{{ m.id }}]" label="{{ m.name }}" placeholder="Select…" data-modifier-name="{{ m.name }}" data-required="{{ m.is_required ? 1 : 0 }}" {% if pick_text %}hint="{{ pick_text }}"{% endif %} {% if m.is_required %}required{% endif %}>
+              <wa-select name="modifiers[{{ m.id }}]" label="{{ m.name }}" placeholder="Select…" data-modifier-name="{{ m.name }}" data-required="{{ m.is_required ? 1 : 0 }}" {% if pick_text %}hint="{{ pick_text }}"{% endif %} {% if m.is_required %}required{% endif %} {% if purchase_disabled %}disabled{% endif %}>
                 {% for opt in m.options ?? [] %}
                   <wa-option value="{{ opt }}">{{ opt }}</wa-option>
                 {% endfor %}
@@ -72,13 +79,13 @@
             {% elseif m.modifier_type == 'multiselect' %}
               {% set pick_text = m|modifier_pick_text %}
 
-              <wa-select name="modifiers[{{ m.id }}][]" label="{{ m.name }}" placeholder="Select…" multiple data-modifier-name="{{ m.name }}" data-required="{{ m.is_required ? 1 : 0 }}" data-min="{{ m.min_selected ?? "" }}" data-max="{{ m.max_selected ?? "" }}" {% if m.is_required %}required{% endif %}{% if pick_text %} hint="{{ pick_text }}"{% endif %}>
+              <wa-select name="modifiers[{{ m.id }}][]" label="{{ m.name }}" placeholder="Select…" multiple data-modifier-name="{{ m.name }}" data-required="{{ m.is_required ? 1 : 0 }}" data-min="{{ m.min_selected ?? "" }}" data-max="{{ m.max_selected ?? "" }}" {% if m.is_required %}required{% endif %}{% if pick_text %} hint="{{ pick_text }}"{% endif %} {% if purchase_disabled %}disabled{% endif %}>
                 {% for opt in m.options ?? [] %}
                   <wa-option value="{{ opt }}">{{ opt }}</wa-option>
                 {% endfor %}
               </wa-select>
             {% else %}
-              <wa-input name="modifiers[{{ m.id }}]" label="{{ m.name }}" {% if m.is_required %}required{% endif %}></wa-input>
+              <wa-input name="modifiers[{{ m.id }}]" label="{{ m.name }}" {% if m.is_required %}required{% endif %} {% if purchase_disabled %}disabled{% endif %}></wa-input>
             {% endif %}
           {% endfor %}
 
@@ -106,7 +113,7 @@
                       </span>
                     </div>
                     <div style="width: 140px;">
-                      <wa-input type="number" name="addons[{{ a.id }}]" label="Qty" value="0" min="0" {% if a_sold_out %}disabled{% endif %}></wa-input>
+                      <wa-input type="number" name="addons[{{ a.id }}]" label="Qty" value="0" min="0" {% if purchase_disabled or a_sold_out %}disabled{% endif %}></wa-input>
                     </div>
                   </div>
                 </wa-card>
@@ -116,9 +123,15 @@
 
           <wa-callout id="add-to-cart-errors" variant="warning" style="display: none;"></wa-callout>
 
-          <wa-button type="submit" variant="brand">
+          <wa-button type="submit" variant="brand" {% if purchase_disabled %}disabled{% endif %}>
             <wa-icon slot="start" name="bag-shopping" variant="solid"></wa-icon>
-            Add to Cart
+            {% if sales_closed %}
+              Sales Closed
+            {% elseif base_sold_out %}
+              Sold Out
+            {% else %}
+              Add to Cart
+            {% endif %}
           </wa-button>
 
 

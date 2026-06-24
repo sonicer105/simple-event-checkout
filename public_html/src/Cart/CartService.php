@@ -65,6 +65,11 @@ final class CartService
             throw new \RuntimeException('Event not found.');
         }
 
+        $eventStatus = (string) ($event['status'] ?? '');
+        if ($eventStatus === 'archived') {
+            throw new \RuntimeException('Online sales for this event are closed.');
+        }
+
         // Price snapshot for cart line.
         $unitPriceCents = 0;
         if ($variationId !== null) {

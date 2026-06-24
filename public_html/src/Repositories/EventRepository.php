@@ -39,7 +39,7 @@ final class EventRepository
     public function findPublicBySlug(string $slug): ?array
     {
         $row = $this->db->fetchAssociative(
-            "SELECT * FROM events WHERE slug = ? AND status IN ('published', 'unlisted') LIMIT 1",
+            "SELECT * FROM events WHERE slug = ? AND status IN ('published', 'unlisted', 'archived') LIMIT 1",
             [$slug]
         );
 
