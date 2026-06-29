@@ -26,6 +26,12 @@
 
       <wa-input name="email" label="Email" value="{{ form.email ?? '' }}" required></wa-input>
 
+      <wa-select name="role" label="Role" required>
+        {% for role in roles %}
+          <wa-option value="{{ role }}" {% if (form.role ?? 'full') == role %}selected{% endif %}>{{ role }}</wa-option>
+        {% endfor %}
+      </wa-select>
+
       <wa-input type="password" name="password" label="Password" help-text="{{ is_new ? 'At least 10 characters.' : 'Leave blank to keep existing password.' }}" value=""></wa-input>
 
       <wa-button type="submit" variant="primary">Save</wa-button>

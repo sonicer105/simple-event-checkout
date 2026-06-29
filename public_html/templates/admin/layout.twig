@@ -20,13 +20,18 @@
       <nav class="admin-nav">
         <wa-card class="admin-nav-card">
           <div class="admin-nav-links">
-            <wa-button href="/admin" variant="{{ active == 'dashboard' ? 'primary' : 'neutral' }}" size="s">Dashboard</wa-button>
-            <wa-button href="/admin/events" variant="{{ active == 'events' ? 'primary' : 'neutral' }}" size="s">Events</wa-button>
-            <wa-button href="/admin/purchases" variant="{{ active == 'purchases' ? 'primary' : 'neutral' }}" size="s">Purchases</wa-button>
+            {% if (admin.role ?? 'full') == 'full' %}
+              <wa-button href="/admin" variant="{{ active == 'dashboard' ? 'primary' : 'neutral' }}" size="s">Dashboard</wa-button>
+              <wa-button href="/admin/events" variant="{{ active == 'events' ? 'primary' : 'neutral' }}" size="s">Events</wa-button>
+              <wa-button href="/admin/purchases" variant="{{ active == 'purchases' ? 'primary' : 'neutral' }}" size="s">Purchases</wa-button>
+            {% endif %}
             <wa-button href="/admin/checkin" variant="{{ active == 'checkin' ? 'primary' : 'neutral' }}" size="s">Check-In</wa-button>
-            <wa-button href="/admin/audit-logs" variant="{{ active == 'audit' ? 'primary' : 'neutral' }}" size="s">Audit Log</wa-button>
-            <wa-button href="/admin/lockouts" variant="{{ active == 'lockouts' ? 'primary' : 'neutral' }}" size="s">Lockouts</wa-button>
-            <wa-button href="/admin/admins" variant="{{ active == 'admins' ? 'primary' : 'neutral' }}" size="s">Admins</wa-button>
+            {% if (admin.role ?? 'full') == 'full' %}
+              <wa-button href="/admin/audit-logs" variant="{{ active == 'audit' ? 'primary' : 'neutral' }}" size="s">Audit Log</wa-button>
+              <wa-button href="/admin/lockouts" variant="{{ active == 'lockouts' ? 'primary' : 'neutral' }}" size="s">Lockouts</wa-button>
+              <wa-button href="/admin/admins" variant="{{ active == 'admins' ? 'primary' : 'neutral' }}" size="s">Admins</wa-button>
+            {% endif %}
+            <wa-button href="/admin/account" variant="{{ active == 'account' ? 'primary' : 'neutral' }}" size="s">My Account</wa-button>
           </div>
         </wa-card>
       </nav>

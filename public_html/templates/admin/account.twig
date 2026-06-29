@@ -1,0 +1,60 @@
+{% extends "admin/layout.twig" %}
+
+{% set active = 'account' %}
+
+{% block admin_content %}
+  <wa-card class="admin-card">
+    <div class="admin-header-row">
+      <div>
+        <div class="admin-title">My Account</div>
+        <div class="admin-subtitle">Update your email, password, and app-based 2FA enrollment.</div>
+      </div>
+    </div>
+
+    {% if error %}
+      <wa-callout variant="danger" class="auth-callout">{{ error }}</wa-callout>
+    {% endif %}
+
+    {% if success %}
+      <wa-callout variant="success" class="auth-callout">{{ success }}</wa-callout>
+    {% endif %}
+
+    <form method="post" class="admin-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      <wa-input name="email" label="Email" value="{{ form.email ?? '' }}" required></wa-input>
+
+      <wa-divider></wa-divider>
+
+      <div class="admin-section-title">Change Password</div>
+      <div class="admin-subtitle">Leave the password fields blank to keep your current password.</div>
+
+      <wa-input type="password" name="current_password" label="Current Password" value=""></wa-input>
+      <wa-input type="password" name="new_password" label="New Password" help-text="At least 10 characters." value=""></wa-input>
+      <wa-input type="password" name="confirm_password" label="Confirm New Password" value=""></wa-input>
+
+      <wa-button type="submit" variant="primary">Save</wa-button>
+    </form>
+
+    <wa-divider></wa-divider>
+
+    <div class="admin-section-title">App-Based 2FA</div>
+    <div class="wa-stack wa-gap-s">
+      {% if admin.app_2fa_enabled and admin.totp_secret %}
+        <wa-callout variant="success">App-based 2FA is enabled for this account.</wa-callout>
+      {% else %}
+        <wa-callout variant="neutral">App-based 2FA is not enabled. Email 2FA will be used at login.</wa-callout>
+      {% endif %}
+
+      <div class="wa-cluster wa-gap-s">
+        <wa-button href="/admin/2fa/enroll" variant="neutral">
+          {% if admin.app_2fa_enabled and admin.totp_secret %}
+            Reconfigure App 2FA
+          {% else %}
+            Set Up App 2FA
+          {% endif %}
+        </wa-button>
+      </div>
+    </div>
+  </wa-card>
+{% endblock %}

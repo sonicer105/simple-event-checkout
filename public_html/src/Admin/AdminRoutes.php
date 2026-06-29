@@ -130,7 +130,7 @@ final class AdminRoutes
             $token = $adminAuth->createSession((int) $admin['id']);
             setcookie($adminAuth->cookieName(), $token, $adminAuth->getSessionCookieParams());
 
-            return $response->withHeader('Location', '/admin')->withStatus(302);
+            return $response->withHeader('Location', self::adminHomePath($admin))->withStatus(302);
         });
 
         $app->get('/admin/2fa-email', function (Request $request, Response $response) use ($adminRepo, $mailer, $emailRenderer, $auditRepo, $config) {
@@ -215,7 +215,7 @@ final class AdminRoutes
             $token = $adminAuth->createSession((int) $admin['id']);
             setcookie($adminAuth->cookieName(), $token, $adminAuth->getSessionCookieParams());
 
-            return $response->withHeader('Location', '/admin')->withStatus(302);
+            return $response->withHeader('Location', self::adminHomePath($admin))->withStatus(302);
         });
 
         $app->post('/admin/2fa-email/resend', function (Request $request, Response $response) use ($adminRepo, $mailer, $emailRenderer, $auditRepo, $config) {
@@ -245,6 +245,9 @@ final class AdminRoutes
         $app->group('/admin', function (Group $group) use ($adminRepo, $auditRepo, $lockoutRepo, $eventRepo, $variationRepo, $modifierRepo, $addonRepo, $purchaseRepo, $purchaseTickets, $purchaseTicketModifiers, $purchaseTicketAddons, $mailer, $emailRenderer, $config, $stock) {
             $group->get('', function (Request $request, Response $response) use ($eventRepo) {
                 $admin = (array) $request->getAttribute('admin');
+                if (self::adminRole($admin) === 'checkin') {
+                    return $response->withHeader('Location', '/admin/checkin')->withStatus(302);
+                }
 
                 $allEvents = $eventRepo->listAll();
 
@@ -391,8 +394,97 @@ final class AdminRoutes
                 ]);
             });
 
+            $group->get('/account', function (Request $request, Response $response) {
+                $admin = (array) $request->getAttribute('admin');
+
+                return Twig::fromRequest($request)->render($response, 'admin/account.twig', [
+                    'admin' => $admin,
+                    'error' => null,
+                    'success' => null,
+                    'form' => [
+                        'email' => (string) ($admin['email'] ?? ''),
+                    ],
+                ]);
+            });
+
+            $group->post('/account', function (Request $request, Response $response) use ($adminRepo, $auditRepo, $config) {
+                $admin = (array) $request->getAttribute('admin');
+                $adminId = (int) ($admin['id'] ?? 0);
+                if ($adminId <= 0) {
+                    return $response->withHeader('Location', '/admin/login')->withStatus(302);
+                }
+
+                $data = (array) $request->getParsedBody();
+                $email = trim((string) ($data['email'] ?? ''));
+                $currentPassword = (string) ($data['current_password'] ?? '');
+                $newPassword = (string) ($data['new_password'] ?? '');
+                $confirmPassword = (string) ($data['confirm_password'] ?? '');
+
+                $render = function (?string $error, ?string $success) use ($request, $response, $admin, $email): Response {
+                    return Twig::fromRequest($request)->render($response, 'admin/account.twig', [
+                        'admin' => $admin,
+                        'error' => $error,
+                        'success' => $success,
+                        'form' => [
+                            'email' => $email,
+                        ],
+                    ]);
+                };
+
+                if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    return $render('Enter a valid email address.', null);
+                }
+
+                $changingPassword = ($newPassword !== '' || $confirmPassword !== '' || $currentPassword !== '');
+                $updates = [];
+
+                if ($email !== (string) ($admin['email'] ?? '')) {
+                    $updates['email'] = $email;
+                }
+
+                if ($changingPassword) {
+                    if ($currentPassword === '') {
+                        return $render('Enter your current password to change it.', null);
+                    }
+
+                    if (!password_verify($currentPassword, (string) ($admin['password_hash'] ?? ''))) {
+                        return $render('Current password is incorrect.', null);
+                    }
+
+                    if (strlen($newPassword) < 10) {
+                        return $render('New password must be at least 10 characters.', null);
+                    }
+
+                    if ($newPassword !== $confirmPassword) {
+                        return $render('New password and confirmation do not match.', null);
+                    }
+
+                    $updates['password_hash'] = password_hash($newPassword, PASSWORD_DEFAULT);
+                }
+
+                if (count($updates) === 0) {
+                    return $render(null, 'No changes to save.');
+                }
+
+                $adminRepo->update($adminId, $updates);
+                $auditRepo->log($adminId, 'admin_self_updated', 'Updated own account settings', RequestUtil::clientIp($config, $request), $request->getHeaderLine('User-Agent'), $request->getHeaderLine('Referer'));
+
+                $freshAdmin = $adminRepo->findById($adminId) ?? $admin;
+                return Twig::fromRequest($request)->render($response, 'admin/account.twig', [
+                    'admin' => $freshAdmin,
+                    'error' => null,
+                    'success' => 'Account updated.',
+                    'form' => [
+                        'email' => (string) ($freshAdmin['email'] ?? $email),
+                    ],
+                ]);
+            });
+
             $group->get('/admins', function (Request $request, Response $response) use ($adminRepo) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
                 $admins = $adminRepo->listAll();
 
                 return Twig::fromRequest($request)->render($response, 'admin/admins.twig', [
@@ -403,6 +495,9 @@ final class AdminRoutes
 
             $group->get('/admins/new', function (Request $request, Response $response) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
 
                 return Twig::fromRequest($request)->render($response, 'admin/admin-edit.twig', [
                     'admin' => $admin,
@@ -411,19 +506,25 @@ final class AdminRoutes
                     'form' => [
                         'username' => '',
                         'email' => '',
+                        'role' => 'full',
                     ],
+                    'roles' => self::adminRoles(),
                     'target_admin' => null,
                 ]);
             });
 
             $group->post('/admins/new', function (Request $request, Response $response) use ($adminRepo, $auditRepo, $config) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
                 $data = (array) $request->getParsedBody();
                 $username = trim((string) ($data['username'] ?? ''));
                 $email = trim((string) ($data['email'] ?? ''));
                 $password = (string) ($data['password'] ?? '');
+                $role = self::normalizeAdminRole((string) ($data['role'] ?? 'full'));
 
-                $renderError = function (string $error) use ($request, $response, $admin, $username, $email): Response {
+                $renderError = function (string $error) use ($request, $response, $admin, $username, $email, $role): Response {
                     return Twig::fromRequest($request)->render($response, 'admin/admin-edit.twig', [
                         'admin' => $admin,
                         'is_new' => true,
@@ -431,7 +532,9 @@ final class AdminRoutes
                         'form' => [
                             'username' => $username,
                             'email' => $email,
+                            'role' => $role,
                         ],
+                        'roles' => self::adminRoles(),
                         'target_admin' => null,
                     ]);
                 };
@@ -450,7 +553,7 @@ final class AdminRoutes
 
                 try {
                     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
-                    $newId = $adminRepo->create($username, $email, $passwordHash);
+                    $newId = $adminRepo->create($username, $email, $passwordHash, $role);
                     $auditRepo->log((int) $admin['id'], 'admin_created', 'Created admin #' . $newId . ' (' . $username . ')', RequestUtil::clientIp($config, $request), $request->getHeaderLine('User-Agent'), $request->getHeaderLine('Referer'));
                     return $response->withHeader('Location', '/admin/admins')->withStatus(302);
                 } catch (\Throwable) {
@@ -460,6 +563,9 @@ final class AdminRoutes
 
             $group->get('/admins/{id}', function (Request $request, Response $response, array $args) use ($adminRepo) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
                 $id = (int) ($args['id'] ?? 0);
                 if ($id <= 0) {
                     return $response->withHeader('Location', '/admin/admins')->withStatus(302);
@@ -477,13 +583,18 @@ final class AdminRoutes
                     'form' => [
                         'username' => (string) ($target['username'] ?? ''),
                         'email' => (string) ($target['email'] ?? ''),
+                        'role' => self::normalizeAdminRole((string) ($target['role'] ?? 'full')),
                     ],
+                    'roles' => self::adminRoles(),
                     'target_admin' => $target,
                 ]);
             });
 
             $group->post('/admins/{id}', function (Request $request, Response $response, array $args) use ($adminRepo, $auditRepo, $config) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
                 $id = (int) ($args['id'] ?? 0);
                 if ($id <= 0) {
                     return $response->withHeader('Location', '/admin/admins')->withStatus(302);
@@ -497,8 +608,9 @@ final class AdminRoutes
                 $data = (array) $request->getParsedBody();
                 $email = trim((string) ($data['email'] ?? ''));
                 $password = (string) ($data['password'] ?? '');
+                $role = self::normalizeAdminRole((string) ($data['role'] ?? 'full'));
 
-                $renderError = function (string $error) use ($request, $response, $admin, $target, $email): Response {
+                $renderError = function (string $error) use ($request, $response, $admin, $target, $email, $role): Response {
                     return Twig::fromRequest($request)->render($response, 'admin/admin-edit.twig', [
                         'admin' => $admin,
                         'is_new' => false,
@@ -506,7 +618,9 @@ final class AdminRoutes
                         'form' => [
                             'username' => (string) ($target['username'] ?? ''),
                             'email' => $email,
+                            'role' => $role,
                         ],
+                        'roles' => self::adminRoles(),
                         'target_admin' => $target,
                     ]);
                 };
@@ -517,6 +631,7 @@ final class AdminRoutes
 
                 $updates = [
                     'email' => $email,
+                    'role' => $role,
                 ];
 
                 if ($password !== '') {
@@ -534,6 +649,9 @@ final class AdminRoutes
 
             $group->post('/admins/{id}/reset-2fa', function (Request $request, Response $response, array $args) use ($adminRepo, $auditRepo, $config) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
                 $id = (int) ($args['id'] ?? 0);
                 if ($id <= 0) {
                     return $response->withHeader('Location', '/admin/admins')->withStatus(302);
@@ -552,6 +670,9 @@ final class AdminRoutes
 
             $group->post('/admins/{id}/delete', function (Request $request, Response $response, array $args) use ($adminRepo, $auditRepo, $config) {
                 $admin = (array) $request->getAttribute('admin');
+                if ($redirect = self::requireFullAdmin($admin, $response)) {
+                    return $redirect;
+                }
                 $id = (int) ($args['id'] ?? 0);
                 if ($id <= 0) {
                     return $response->withHeader('Location', '/admin/admins')->withStatus(302);
@@ -1597,6 +1718,35 @@ return Twig::fromRequest($request)->render($response, 'admin/event-modifier-edit
 
         // Rotate CSRF token on login.
         $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    private static function adminRole(array $admin): string
+    {
+        return self::normalizeAdminRole((string) ($admin['role'] ?? 'full'));
+    }
+
+    private static function normalizeAdminRole(string $role): string
+    {
+        return in_array($role, self::adminRoles(), true) ? $role : 'full';
+    }
+
+    private static function adminRoles(): array
+    {
+        return ['full', 'checkin'];
+    }
+
+    private static function adminHomePath(array $admin): string
+    {
+        return self::adminRole($admin) === 'checkin' ? '/admin/checkin' : '/admin';
+    }
+
+    private static function requireFullAdmin(array $admin, Response $response): ?Response
+    {
+        if (self::adminRole($admin) !== 'full') {
+            return $response->withHeader('Location', '/admin/checkin')->withStatus(302);
+        }
+
+        return null;
     }
 
     private static function sendAdminEmail2faCode(array $config, array $admin, Mailer $mailer, EmailRenderer $renderer): void

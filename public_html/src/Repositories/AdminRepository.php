@@ -60,11 +60,12 @@ final class AdminRepository
         return $row ?: null;
     }
 
-    public function create(string $username, string $email, string $passwordHash): int
+    public function create(string $username, string $email, string $passwordHash, string $role = 'full'): int
     {
         $this->db->insert('admins', [
             'username' => $username,
             'email' => $email,
+            'role' => $role,
             'password_hash' => $passwordHash,
         ]);
 

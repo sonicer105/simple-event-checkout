@@ -25,7 +25,22 @@ final class AdminMiddleware implements MiddlewareInterface
             return $response->withHeader('Location', '/admin/login')->withStatus(302);
         }
 
+        $path = $request->getUri()->getPath();
+        $role = (string) ($admin['role'] ?? 'full');
+        if ($role === 'checkin') {
+            $isAllowed = $path === '/admin/logout'
+                || $path === '/admin/account'
+                || $path === '/admin/checkin'
+                || str_starts_with($path, '/admin/checkin/')
+                || $path === '/admin/2fa/enroll'
+                || $path === '/admin/2fa/enroll/reset';
+
+            if (!$isAllowed) {
+                $response = new SlimResponse();
+                return $response->withHeader('Location', '/admin/checkin')->withStatus(302);
+            }
+        }
+
         return $handler->handle($request->withAttribute('admin', $admin));
     }
 }
-
